@@ -108,7 +108,7 @@ data <- data %>%
 # It uses the method of alternating projections
 # It is more efficient in time
 # see ?felm 
-# the lasta block pair_id give the cluster specification for standard-errors.
+# the last block pair_id defines the cluster specification for standard-errors.
 
 fit3 <- felm(ln_trade ~ ln_DIST + CNTG + LANG + CLNY | (exp_year) + (imp_year) | 0 | pair_id,
      subset = filter1,
