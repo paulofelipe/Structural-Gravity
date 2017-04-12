@@ -20,7 +20,7 @@ packages <- c('haven', 'dplyr', 'multiwayvcov', 'lmtest',
 load_packages <- sapply(packages, check_and_install)
 
 # load speedglm_cluster function
-source('R/speedglm_cluster.R')
+source('R/aux_functions.R')
 
 # Read and Prepare Data --------------------------------------------------
 
@@ -156,18 +156,14 @@ round(c.reset, 3)
 # The speedglm package gives a faster implementation of glm.
 # One disadvantage is that it does provide a function to compute robust/clustered
 # standard errors.
-# Use cluster.vcov.speedglm
+# gravity_ppml uses speedglm package
+# See the functions in speedglm.R script
+data$const <- 1
+fit6 <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY", "const"),
+                     data = data, 
+                     fixed_effects = c("exp_year", "imp_year"),
+                     reference = "imp_yearZAF",
+                     subset = data$exporter != data$importer,
+                     cluster = "pair_id")
 
-X <- sparse.model.matrix(~ +1 + ln_DIST + CNTG + LANG + CLNY + exp_year + imp_year,
-                         data = data[data$exporter != data$importer, ])
-
-fit6 <- speedglm.wfit(X = X, y = data[data$exporter != data$importer, "trade"][[1]],
-                      sparse = TRUE,
-                      family = quasipoisson(link = log),
-                      fitted = TRUE)
-
-fit6.cluster <- speedglm.cluster(fit6, X = X,
-                                 y = data[data$exporter != data$importer, "trade"][[1]],
-                                 cluster = data[data$exporter != data$importer, "pair_id"][[1]])
-
-round(fit6.cluster, 3)[1:5, ]
+summary.ppml(fit6)
