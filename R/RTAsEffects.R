@@ -33,9 +33,13 @@ data <- data %>%
          imp_year = paste0(importer, year),
          pair_id2 = ifelse(exporter == importer, "intra", pair_id))
 
-fit <- gravity_ppml(y = "trade",
-                    x = c("RTA"),
-                    data = data,
-                    fixed_effects = c("exp_year", "imp_year", "pair_id2"),
-                    robust = TRUE,
-                    cluster = 'pair_id')
+fit <- gravity_ppml2(y = "trade",
+                     x = c("RTA"),
+                     data = data,
+                     reference = "imp_yearDEU",
+                     fixed_effects = c("exp_year", "imp_year", "pair_id2"),
+                     robust = TRUE,
+                     cluster = 'pair_id', 
+                     trace = TRUE)
+
+summary.ppml(fit)
