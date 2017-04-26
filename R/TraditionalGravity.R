@@ -162,7 +162,6 @@ data$const <- 1
 fit6 <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY", "const"),
                      data = data, 
                      fixed_effects = c("exp_year", "imp_year"),
-                     reference = "imp_yearZAF",
                      subset = data$exporter != data$importer,
                      cluster = "pair_id")
 
