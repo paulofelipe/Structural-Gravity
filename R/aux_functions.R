@@ -71,11 +71,11 @@ summary.ppml <- function(fit){
   if(fit$robust){
     vcov <- fit$vcov
     x <- fit$x
+    idx_x <- which(names(fit$coefficients) %in% x)
     sd <- rep(NA_real_, length(fit$coefficients))
-    sd[!is.na(fit$coefficients)] <- sqrt(diag(vcov))
+    sd[idx_x] <- sqrt(diag(vcov))[idx_x]
     
     s <- summary(fit)
-    idx_x <- which(names(fit$coefficients) %in% x)
     s$coefficients <- s$coefficients[idx_x,]
     s$coefficients$`Std. Error` <- sd[idx_x]
     s$coefficients$`t value` <- s$coefficients$Estimate/s$coefficients$`Std. Error`
@@ -132,6 +132,7 @@ gravity_ppml2 <- function(y, x, data, fixed_effects = NULL, cluster = NULL,
     z[[i]] <- fit.tmp$residuals
   }
   z <- z[,-1]
+  z <- as.matrix(z)
   
   W1 <- Diagonal(mu, n = n)
   bread <- solve(t(z) %*% W1 %*% z)

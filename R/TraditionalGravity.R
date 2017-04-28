@@ -152,14 +152,10 @@ vcov_cluster_reset <- cluster.vcov(fit.reset,
 c.reset <- coeftest(fit.reset, vcov_cluster_reset)[2, ]
 round(c.reset, 3)
 
-# Second: speedglm
+# Second: gravity_ppml
+# It uses the speedglm package
 # The speedglm package gives a faster implementation of glm.
-# One disadvantage is that it does provide a function to compute robust/clustered
-# standard errors.
-# gravity_ppml uses speedglm package
-# See the functions in speedglm.R script
-data$const <- 1
-fit6 <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY", "const"),
+fit6 <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
                      data = data, 
                      fixed_effects = c("exp_year", "imp_year"),
                      subset = data$exporter != data$importer,
