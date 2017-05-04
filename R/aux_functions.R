@@ -4,12 +4,16 @@ gravity_ppml <- function(y, x, data, fixed_effects = NULL, cluster = NULL,
   require(Matrix)
   require(speedglm)
   
+  data <- data.frame(data)
+  data[, fixed_effects] <- lapply(data[, fixed_effects], as.factor)
+  
   if(!is.null(subset)) data <- data[subset,]
   
   xvars <- c(x, fixed_effects)
   xvars <- paste0(xvars, collapse = " + ")
   x_formula <- as.formula(paste0("~ -1 + ", xvars))
-  X <- sparse.model.matrix(x_formula, data)
+  X <- sparse.model.matrix(x_formula, data, 
+                           contrasts.arg = lapply(data[, fixed_effects], contrasts, contrasts = FALSE))
   y_data <- data[[y]]
   
   if(!is.null(reference)){
@@ -94,12 +98,16 @@ gravity_ppml2 <- function(y, x, data, fixed_effects = NULL, cluster = NULL,
   require(speedglm)
   require(lfe)
   
+  data <- data.frame(data)
+  data[, fixed_effects] <- lapply(data[, fixed_effects], as.factor)
+  
   if(!is.null(subset)) data <- data[subset,]
   
   xvars <- c(x, fixed_effects)
   xvars <- paste0(xvars, collapse = " + ")
   x_formula <- as.formula(paste0("~ -1 + ", xvars))
-  X <- sparse.model.matrix(x_formula, data)
+  X <- sparse.model.matrix(x_formula, data,
+                           contrasts.arg = lapply(data[, fixed_effects], contrasts, contrasts = FALSE))
   y_data <- data[[y]]
   
   if(!is.null(reference)){

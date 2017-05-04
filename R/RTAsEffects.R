@@ -36,7 +36,7 @@ data <- data %>%
 fit <- gravity_ppml2(y = "trade",
                      x = c("RTA"),
                      data = data,
-                     reference = "imp_yearDEU",
+                     reference = "imp_yearDEU|intra",
                      fixed_effects = c("exp_year", "imp_year", "pair_id2"),
                      robust = TRUE,
                      cluster = 'pair_id', 
