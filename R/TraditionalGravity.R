@@ -155,11 +155,12 @@ round(c.reset, 3)
 # Second: gravity_ppml
 # It uses the speedglm package
 # The speedglm package gives a faster implementation of glm.
-fit6 <- gravity_ppml2(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
+fit6 <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
                      data = data, 
-                     reference = "imp_yearDEU",
                      fixed_effects = c("exp_year", "imp_year"),
                      subset = data$exporter != data$importer,
+                     robust = TRUE,
                      cluster = "pair_id")
 
-summary.ppml(fit6)
+summary(fit6)
+
