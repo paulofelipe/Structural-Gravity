@@ -180,12 +180,15 @@ gravity_ppml2 <- function(y, x, data, fixed_effects = NULL, cluster = NULL,
 }
 
 gravity_ppml3 <- function(y, x, fixed_effects, data,
+                          offset = NULL,
                           subset = NULL,
                           robust = TRUE, cluster = NULL){
   
   
   if(!is.null(subset)) data <- data[subset,]
   
+  offset2 <- offset
+  if(is.null(offset)) offset <- rep(0, nrow(data))
   
   trade <- data[[y]]
   
@@ -199,7 +202,7 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   trade <- trade/max_trade
   
   mu <- (trade + 0.5)/2
-  eta <- log(mu)
+  eta <- log(mu) - offset
   z <- eta + (trade - mu)/mu
   
   # Formula
@@ -215,9 +218,9 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
                 data = data,
                 weights = mu)
     
-    eta <- z - reg$residuals
+    eta <- z - reg$residuals + offset
     mu <- exp(eta)
-    z <- eta + (trade - mu)/mu
+    z <- (eta - offset) + (trade - mu)/mu
     
     res <- trade - mu
     rss2 <- sum(res^2)
@@ -231,7 +234,9 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   z <- data.frame(id = 1:nrow(data))
   for(i in x){
     fixed_effects_tmp <- paste0(fixed_effects, collapse = " + ")
-    f <- as.formula(paste0(i, " ~ -1 | ", fixed_effects_tmp, " | 0 | 0"))
+    f <- as.formula(paste0(i, " ~ -1 ", 
+                           ifelse(!is.null(offset2), " + offset ", ""),
+                           "| ", fixed_effects_tmp, " | 0 | 0"))
     fit.tmp <- felm(f, data = data, weights = mu)
     z[[i]] <- fit.tmp$residuals
   }
