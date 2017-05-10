@@ -60,13 +60,14 @@ xvars <- c("logDIST1986", "logDIST1990",
            "logDIST2002", "logDIST2006",
            "CNTG", "LANG", "CLNY")
 
-fit2 <- gravity_ppml(y = "trade", x = xvars,
+fit2 <- gravity_ppml3(y = "trade", x = xvars,
                      data = data,
                      fixed_effects = c("exp_year", "imp_year"),
+                     robust = TRUE,
                      cluster = "pair_id",
                      subset = data$importer != data$exporter)
 
-summary.ppml(fit2)
+summary(fit2)
 
 # PPML with intra trade ------------------------------------------------------
 
@@ -78,24 +79,24 @@ data <- data %>%
 
 xvars <- c(xvars, 'logDIST_INTRA')
 
-fit3 <- gravity_ppml(y = "trade", x = xvars,
+fit3 <- gravity_ppml3(y = "trade", x = xvars,
                      data = data,
                      fixed_effects = c("exp_year", "imp_year"),
                      cluster = "pair_id")
 
-summary.ppml(fit3)
+summary(fit3)
 
 # PPML with intra trade and Home Bias   --------------------------------------
 
 # create intra trade distance variable
 xvars <- c(xvars, 'SMCTRY')
 
-fit4 <- gravity_ppml(y = "trade", x = xvars,
+fit4 <- gravity_ppml3(y = "trade", x = xvars,
                      data = data,
                      fixed_effects = c("exp_year", "imp_year"),
                      cluster = "pair_id")
 
-summary.ppml(fit4)
+summary(fit4)
 
 # PPML with intra-national fixed effects
 
@@ -104,9 +105,9 @@ data <- data %>%
 
 xvars <- xvars[1:9]
 
-fit5 <- gravity_ppml(y = "trade", x = xvars,
+fit5 <- gravity_ppml3(y = "trade", x = xvars,
                      data = data,
                      fixed_effects = c("exp_year", "imp_year", "intra_pair"),
                      cluster = "pair_id")
 
-summary.ppml(fit5)
+summary(fit5)

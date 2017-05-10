@@ -120,24 +120,24 @@ summary(fit3)
 # First solution: glm()
 # It is slower, but we can use the cluster.vcov function
 
-fit5 <- glm(trade ~ 1 + ln_DIST + CNTG + LANG + CLNY + exp_year + imp_year,
+fit4 <- glm(trade ~ 1 + ln_DIST + CNTG + LANG + CLNY + exp_year + imp_year,
             family = quasipoisson(),
             subset = exporter != importer,
             data = data)
 
 # Compute clustered standard errors
-vcov_cluster5 <- cluster.vcov(fit5,
+vcov_cluster4 <- cluster.vcov(fit4,
                               cluster = data[data$exporter != data$importer, "pair_id"],
                               df_correction = FALSE)
 
 # Tests on coefficients with clustered standard errors
 # Difference in constant due the reference level
-c <- coeftest(fit5, vcov_cluster5)[1:5, ]
+c <- coeftest(fit4, vcov_cluster4)[1:5, ]
 round(c, 3)
 
 # Reset test
 
-pred <- predict(fit5)
+pred <- predict(fit4)
 pred <- pred^2
 data[data$exporter != data$importer, "pred"] <- pred
 fit.reset <- glm(trade ~ 1 + pred + ln_DIST + CNTG + LANG + CLNY + exp_year + imp_year,
@@ -155,12 +155,12 @@ round(c.reset, 3)
 # Second: gravity_ppml
 # It uses the speedglm package
 # The speedglm package gives a faster implementation of glm.
-fit6 <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
+fit5 <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
                      data = data, 
                      fixed_effects = c("exp_year", "imp_year"),
                      subset = data$exporter != data$importer,
                      robust = TRUE,
                      cluster = "pair_id")
 
-summary(fit6)
+summary(fit5)
 
