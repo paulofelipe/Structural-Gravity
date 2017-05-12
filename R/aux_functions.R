@@ -207,7 +207,11 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   
   # Formula
   
-  f <- paste0("z ~ ", paste0(x, collapse = " + "), " | ",
+  if(!is.null(x)){
+    xvars <- paste0(x, collapse = " + ")
+  }
+  
+  f <- paste0("z ~ ", ifelse(is.null(x), " -1 ", xvars), " | ",
               paste0(fixed_effects, collapse = " + "))
   f <- as.formula(f)
   
@@ -231,69 +235,77 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
     # cat('Sum of Squared Residuals = ', rss2, "\n")
   }
   
-  z <- data.frame(id = 1:nrow(data))
-  for(i in x){
-    fixed_effects_tmp <- paste0(fixed_effects, collapse = " + ")
-    f <- as.formula(paste0(i, " ~ -1 ", 
-                           ifelse(!is.null(offset2), " + offset ", ""),
-                           "| ", fixed_effects_tmp, " | 0 | 0"))
-    fit.tmp <- felm(f, data = data, weights = mu)
-    z[[i]] <- fit.tmp$residuals
-  }
-  z <- z[,-1]
-  z <- as.matrix(z)
+  z <- z + log(max_trade)
+  reg <- felm(f,
+              data = data,
+              weights = mu)
   
-  n <- reg$N
-  k <- length(x)
-  W1 <- Diagonal(mu, n = n)
-  bread <- solve(t(z) %*% W1 %*% z)
-  
-  cluster_name <- cluster
-  
-  res <- trade - mu
-  if(robust){
-    if(is.null(cluster)){
-      W2 <- Diagonal((res^2), n = n)
-      meat <- t(z) %*% W2 %*% z
-      
-    } else {
-      cluster <- data[[cluster]]
-      m <- length(unique(cluster))
-      dfc <- (m/(m-1))*((n-1)/(n-k))
-      
-      meat <- matrix(0, nrow = length(x), ncol = length(x))
-      
-      for(i in unique(cluster)){
-        z_tmp <- as.matrix(z[cluster == i, ])
-        res_tmp <- res[cluster == i]
-        W2_tmp <- res_tmp %*% t(res_tmp)
-        meat <- meat + (t(z_tmp) %*% W2_tmp %*% z_tmp)
+  if(!is.null(x)){
+    z <- data.frame(id = 1:nrow(data))
+    for(i in x){
+      fixed_effects_tmp <- paste0(fixed_effects, collapse = " + ")
+      f <- as.formula(paste0(i, " ~ -1 ", 
+                             ifelse(!is.null(offset2), " + offset ", ""),
+                             "| ", fixed_effects_tmp, " | 0 | 0"))
+      fit.tmp <- felm(f, data = data, weights = mu)
+      z[[i]] <- fit.tmp$residuals
+    }
+    z <- z[,-1]
+    z <- as.matrix(z)
+    
+    n <- reg$N
+    k <- length(x)
+    W1 <- Diagonal(mu, n = n)
+    bread <- solve(t(z) %*% W1 %*% z)
+    
+    cluster_name <- cluster
+    
+    res <- trade - mu
+    if(robust){
+      if(is.null(cluster)){
+        W2 <- Diagonal((res^2), n = n)
+        meat <- t(z) %*% W2 %*% z
+        
+      } else {
+        cluster <- data[[cluster]]
+        m <- length(unique(cluster))
+        dfc <- (m/(m-1))*((n-1)/(n-k))
+        
+        meat <- matrix(0, nrow = length(x), ncol = length(x))
+        
+        for(i in unique(cluster)){
+          z_tmp <- as.matrix(z[cluster == i, , drop = FALSE])
+          res_tmp <- res[cluster == i]
+          W2_tmp <- res_tmp %*% t(res_tmp)
+          meat <- meat + (t(z_tmp) %*% W2_tmp %*% z_tmp)
+        }
       }
     }
-  }
-  
-  vcov <- if(robust){
-    bread %*% meat %*% bread
-  } else {
-    bread
-  }
-
-  reg$vcv <- vcov
-  reg$se <- sqrt(diag(reg$vcv))
-  reg$tval <- reg$coefficients/reg$se
-  reg$pval <- 1 - pnorm(abs(reg$tval))
-  
-  if(robust){
+    
+    vcov <- if(robust){
+      bread %*% meat %*% bread
+    } else {
+      bread
+    }
+    
     reg$vcv <- vcov
     reg$se <- sqrt(diag(reg$vcv))
     reg$tval <- reg$coefficients/reg$se
     reg$pval <- 1 - pnorm(abs(reg$tval))
     
-    reg$robustvcv <- vcov
-    reg$rse <- sqrt(diag(reg$robustvcv))
-    reg$rtval <- reg$coefficients/reg$rse
-    reg$rpval <- 1 - pnorm(abs(reg$rtval))
+    if(robust){
+      reg$vcv <- vcov
+      reg$se <- sqrt(diag(reg$vcv))
+      reg$tval <- reg$coefficients/reg$se
+      reg$pval <- 1 - pnorm(abs(reg$tval))
+      
+      reg$robustvcv <- vcov
+      reg$rse <- sqrt(diag(reg$robustvcv))
+      reg$rtval <- reg$coefficients/reg$rse
+      reg$rpval <- 1 - pnorm(abs(reg$rtval))
+    }
   }
+  
   class(reg) <- "felm2"
   return(reg)
 }
