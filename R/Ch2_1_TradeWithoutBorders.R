@@ -82,7 +82,7 @@ data_borders <- data_borders %>%
 
 # Outward and Inward multilateral resistance terms
 data_borders <- data_borders %>% 
-  mutate(OMR_BLN = Y * E_R/ (fe_exp * Y_WLD),
+  mutate(OMR_BLN = Y * E_R/ (fe_exp),
          IMR_BLN = E / (fe_imp * E_R))
 
 # Output and Expenditure - Baseline
@@ -93,7 +93,7 @@ data_borders <- data_borders %>%
 
 # Predicted trade - Baseline
 data_borders <- data_borders %>% 
-  mutate(tradehat_BLN = (Y * E * tij_BLN)/(Y_WLD * OMR_BLN * IMR_BLN))
+  mutate(tradehat_BLN = (Y * E * tij_BLN)/( OMR_BLN * IMR_BLN))
 
 ##############################################################################
 ########################## STEP 2 ###########################################
@@ -136,12 +136,12 @@ data_borders <- data_borders %>%
 
 # Outward and Inward multilateral resistance terms
 data_borders <- data_borders %>% 
-  mutate(OMR_CDL = Y * E_R/ (fe_exp_cdl * Y_WLD),
+  mutate(OMR_CDL = Y * E_R/ (fe_exp_cdl),
          IMR_CDL = E / (fe_imp_cdl * E_R))
 
 # Predicted trade - Conditional
 data_borders <- data_borders %>% 
-  mutate(tradehat_CDL = (Y * E * tij_CFL)/(Y_WLD * OMR_CDL * IMR_CDL))
+  mutate(tradehat_CDL = (Y * E * tij_CFL)/( OMR_CDL * IMR_CDL))
 
 # Estimated level of international trade conditional on given Y and E
 # data_borders <- data_borders %>% 
@@ -180,34 +180,30 @@ data_borders <- data_borders %>%
 
 # Compute change in output and expenditure
 data_borders <- data_borders %>% 
-  mutate(Y_CFL = Y * change_p_i,
-         E_CFL = E * change_p_j,
+  mutate(Y_CFL = Y,
+         E_CFL = E,
          Y_WLD_CFL = sum(Y_CFL * (1 - INTL)),
          OMR_CFL = OMR_CDL,
-         IMR_CFL = IMR_CDL)
+         IMR_CFL = IMR_CDL,
+         E_R_CFL = E_R,
+         fe_exp_cfl = fe_exp_cdl,
+         fe_imp_cfl = fe_imp_cdl)
 
 # Update trade flows - Counterfactual
 data_borders <- data_borders %>% 
-  mutate(trade_CFL = tradehat_CDL * (tij_CFL/tij_BLN) * 
-           ((Y_CFL * E_CFL * Y_WLD_BLN)/(Y_BLN * E_BLN * Y_WLD_CFL)) *
-           (OMR_BLN/OMR_CFL) *
-           (IMR_BLN/IMR_CFL))
+  mutate(trade_CFL = tradehat_CDL * change_p_i * change_p_j)
 
 # Start loop
 data_borders$dif <- 1
 data_borders$change_p_i_0 <- data_borders$change_p_i
 
-while(max(abs(data_borders$dif)) > 1e-3){
+while(max(abs(data_borders$dif)) > 1e-6){
   print(max(abs(data_borders$dif)))
   fit_cfl <- gravity_ppml3(y = "trade_CFL", x = NULL,
                            offset = log(data_borders$tij_CFL),
                            fixed_effects = c("importer", "exporter"),
                            data = data_borders,
                            robust = TRUE)
-  
-  data_borders <- data_borders %>% 
-    mutate(E_R_CFL_tmp = ifelse(importer == "AAA", E_CFL, 0),
-         E_R_CFL_tmp = max(E_R_CFL_tmp))
   
   fe_exp_cfl <- getfe(fit_cfl) %>% filter(fe == "exporter") %>% 
     select(idx, fe_exp_cfl_tmp = effect)
@@ -221,18 +217,30 @@ while(max(abs(data_borders$dif)) > 1e-3){
     mutate(fe_exp_cfl_tmp = exp(fe_exp_cfl_tmp),
            fe_imp_cfl_tmp = exp(fe_imp_cfl_tmp))
   
+  data_borders <- data_borders %>% 
+    mutate(tradehat_CFL = tij_CFL * fe_exp_cfl_tmp * fe_imp_cfl_tmp) %>% 
+    group_by(exporter) %>% 
+    mutate(Y_CFL_tmp = sum(tradehat_CFL)) %>% 
+    ungroup() %>% 
+    mutate(E_CFL_tmp = ifelse(importer == exporter, phi * Y_CFL_tmp, 0)) %>% 
+    group_by(importer) %>% 
+    mutate(E_CFL_tmp = max(E_CFL_tmp)) %>% 
+    ungroup() %>% 
+    mutate(E_R_CFL_tmp = ifelse(importer == "AAA", E_CFL_tmp, 0),
+           E_R_CFL_tmp = max(E_R_CFL_tmp))
+  
   # Outward and Inward multilateral resistance terms
   data_borders <- data_borders %>% 
-    mutate(OMR_CFL_tmp = Y_CFL * E_R_CFL_tmp/ (fe_exp_cfl_tmp * Y_WLD_CFL),
-           IMR_CFL_tmp = E_CFL / (fe_imp_cfl_tmp * E_R_CFL_tmp))
+    mutate(OMR_CFL_tmp = Y_CFL_tmp * E_R_CFL_tmp/ (fe_exp_cfl_tmp),
+           IMR_CFL_tmp = E_CFL_tmp / (fe_imp_cfl_tmp * E_R_CFL_tmp))
   
   # Predicted trade - Conditional
   data_borders <- data_borders %>% 
-    mutate(tradehat_CFL = (Y_CFL * E_CFL * tij_CFL)/(Y_WLD_CFL * OMR_CFL_tmp * IMR_CFL_tmp))
+    mutate(tradehat_CFL2 = (Y_CFL_tmp * E_CFL_tmp * tij_CFL)/(OMR_CFL_tmp * IMR_CFL_tmp))
   
   # Changes in prices for exporters
   data_borders <- data_borders %>% 
-    mutate(change_p_i = ((fe_exp_cfl_tmp / E_R_CFL_tmp) / (fe_exp_cfl / E_R_cfl))^(1 /(1 - sigma)))
+    mutate(change_p_i = ((fe_exp_cfl_tmp / E_R_CFL_tmp) / (fe_exp_cfl / E_R_CFL))^(1 /(1 - sigma)))
   
   # Changes in prices for importers
   data_borders <- data_borders %>% 
@@ -241,25 +249,33 @@ while(max(abs(data_borders$dif)) > 1e-3){
            change_p_j = max(change_p_j)) %>% 
     ungroup()
   
-  # Compute change in output and expenditure
+  # Changes in OMR and IMR
   data_borders <- data_borders %>% 
-    mutate(Y_CFL_tmp = Y * change_p_i,
-           E_CFL_tmp = E * change_p_j,
-           Y_WLD_CFL_tmp = sum(Y_CFL * (1 - INTL)))
+    mutate(change_IMR_FULL = IMR_CFL_tmp/IMR_CFL,
+           change_OMR_FULL = OMR_CFL_tmp/OMR_CFL)
   
-  # Update trade flows - Counterfactual
+    # Update trade flows - Counterfactual
   data_borders <- data_borders %>% 
-    mutate(trade_CFL = tradehat_CFL * (tij_CFL/tij_BLN) * 
-             ((Y_CFL_tmp * E_CFL_tmp * Y_WLD_CFL)/(Y_CFL * E_CFL * Y_WLD_CFL_tmp)) *
-             (OMR_CFL/OMR_CFL_tmp) *
-             (IMR_CFL/IMR_CFL_tmp)) %>% 
-    select(-fe_exp_cfl, -fe_imp_cfl)
+    mutate(trade_CFL = tradehat_CFL2 *  change_p_i * change_p_j /
+             (change_IMR_FULL * change_OMR_FULL)) 
   
   # Update dif
   data_borders$dif <- data_borders$change_p_i - data_borders$change_p_i_0
   data_borders$change_p_i_0 <- data_borders$change_p_i
   
+  # update counterfactuals
+  data_borders <- data_borders %>% 
+    mutate(Y_CFL = Y_CFL_tmp,
+           E_CFL = E_CFL_tmp,
+           fe_exp_cfl = fe_exp_cfl_tmp,
+           fe_imp_cfl = fe_imp_cfl_tmp,
+           E_R_CFL = E_R_CFL_tmp,
+           OMR_CFL = OMR_CFL_tmp,
+           IMR_CFL = IMR_CFL_tmp) %>% 
+    select(-fe_exp_cfl_tmp, -fe_imp_cfl_tmp)
+  
 }
 
-
+data_borders <- data_borders %>% 
+  mutate(change_p_i_full = ((fe_exp_cfl / E_R_CFL) / (fe_exp / E_R))^(1 /(1 - sigma)))
 
