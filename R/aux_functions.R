@@ -217,7 +217,7 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   
   dif <- 1
   rss1 <- 1
-  while(abs(dif) > 1e-10){
+  while(abs(dif) > 1e-12){
     reg <- felm(f,
                 data = data,
                 weights = mu)
@@ -305,6 +305,27 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
       reg$rpval <- 1 - pnorm(abs(reg$rtval))
     }
   }
+  
+  x_fixed_effects <- data[, fixed_effects]
+  
+  for(i in 1:length(fixed_effects)){
+    fe_tmp <- getfe(reg) %>%
+      filter(fe == fixed_effects[i]) %>% 
+      dplyr::select(idx, effect)
+    colnames(fe_tmp) <- c(fixed_effects[i], 
+                          paste0("fe_", fixed_effects[i]))
+    x_fixed_effects <- left_join(x_fixed_effects,
+                                 fe_tmp,
+                                 by = c(fixed_effects[i]))  
+  }
+  
+  x_fixed_effects <- x_fixed_effects[,!names(x_fixed_effects) %in% fixed_effects]
+  x_fixed_effects <- apply(x_fixed_effects, 1, sum)
+  
+  x_var <- as.matrix(data[,x])
+  beta <- as.matrix(reg$coefficients)
+  x_beta <- exp(x_var%*%reg$coefficients + x_fixed_effects)
+  reg$fitted.values <- x_beta
   
   class(reg) <- "felm2"
   return(reg)
