@@ -3,13 +3,13 @@ library(lfe)
 library(dplyr)
 library(BB)
 
-source("D:/Structural-Gravity/R/aux_functions.R")
+source("R/aux_functions.R")
 
 
-# Função para criar os termos multilaterais de resistência ----------------
+# FunÃ§Ã£o para criar os termos multilaterais de resistÃªncia ----------------
 
-# Observação: O primeiro país (em ordem alfabética deve ter sido usado como
-# referência na estimação
+# ObservaÃ§Ã£o: O primeiro paÃ­s (em ordem alfabÃ©tica deve ter sido usado como
+# referÃªncia na estimaÃ§Ã£o
 
 MRTS <- function(p){
   r <- rep(NA, length(p))
@@ -38,7 +38,7 @@ get_alphas <- function(p){
   idx_Pi <- (n+1):(2*n)
   idx_alphas <- (2*n + 1):(3*n)
   
-  # Variáveis Endógenas
+  # VariÃ¡veis EndÃ³genas
   Pi <- matrix(rep(p[idx_Pi], n), n, byrow = FALSE) 
   P <- matrix(rep(p[1:n], n), n, byrow = TRUE) 
   
@@ -62,7 +62,7 @@ get_prices <- function(p){
   idx_Pi <- (n+1):(2*n)
   idx_price <- (2*n + 1):(3*n)
   
-  # Variáveis Endógenas
+  # VariÃ¡veis EndÃ³genas
   Pi <- matrix(rep(p[idx_Pi], n), n, byrow = FALSE) 
   P <- matrix(rep(p[1:n], n), n, byrow = TRUE) 
   price <- p[idx_price]
@@ -85,28 +85,40 @@ get_prices <- function(p){
 }
 
 # Carregar os dados -------------------------------------------------------
-dados <- read_dta('D:/Users/paulo.alencar/Downloads/GE PPML/ge_ppml_data.dta')
+dados <- read_dta('Data/Chapter2Application1.dta')
 
-# Define o país de referência como AAA
+# Filtra os dados e criar novas variÃ¡veis
 dados <- dados %>% 
-  mutate(exporter = ifelse(exporter == "ZZZ", "AAA", exporter),
-         importer = ifelse(importer == "ZZZ", "AAA", importer))
+  filter(year == 2006) %>% 
+  mutate(ln_DIST = log(DIST),
+         INTL_BRDR = ifelse(exporter != importer, 1, 0)) %>% 
+  group_by(exporter) %>% 
+  mutate(Y = sum(trade)) %>% 
+  ungroup() %>% 
+  group_by(importer) %>% 
+  mutate(E = sum(trade)) %>% 
+  ungroup()
+
+# Define o paÃ­s de referÃªncia como AAA
+dados <- dados %>% 
+  mutate(exporter = ifelse(exporter == "DEU", "AAA", exporter),
+         importer = ifelse(importer == "DEU", "AAA", importer))
 
 # Estima o modelo gravitacional
-fit <- gravity_ppml3(y = "trade", x = c("LN_DIST", "CNTG", "BRDR"),
+fit <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "INTL_BRDR"),
                      fixed_effects = c("importer", "exporter"),
                      data = dados)
 
 summary(fit)
 
-# Computa os custos de comércio - baseline e contra factual
+# Computa os custos de comÃ©rcio - baseline e contra factual
 dados <- dados %>% 
-  mutate(t_bsln = exp(fit$coefficients["LN_DIST",] * LN_DIST +
+  mutate(t_bsln = exp(fit$coefficients["ln_DIST",] * ln_DIST +
                         fit$coefficients["CNTG",] * CNTG +
-                        fit$coefficients["BRDR",] * BRDR),
-         t_crfl = exp(fit$coefficients["LN_DIST",] * LN_DIST +
+                        fit$coefficients["INTL_BRDR",] * INTL_BRDR),
+         t_crfl = exp(fit$coefficients["ln_DIST",] * ln_DIST +
                         fit$coefficients["CNTG",] * CNTG +
-                        fit$coefficients["BRDR",] * BRDR * 0)) %>% 
+                        fit$coefficients["INTL_BRDR",] * INTL_BRDR * 0)) %>% 
   select(exporter, importer, trade, t_bsln, t_crfl) %>% 
   arrange(exporter, importer)
 
@@ -115,68 +127,68 @@ head(dados)
 
 # Dados usados no sistema ----------------------------------------------------
 
-# Matriz de custos de comércio - Baseline
+# Matriz de custos de comÃ©rcio - Baseline
 tc_bsln <- matrix(dados$t_bsln, nrow = sqrt(nrow(dados)), byrow = TRUE)
 
-# Termos multilaterais de resistência: contra factual
+# Termos multilaterais de resistÃªncia: contra factual
 tc_crfl <- matrix(dados$t_crfl, nrow = sqrt(nrow(dados)), byrow = TRUE)
 
-# Dados de produção 
+# Dados de produÃ§Ã£o 
 y_i <- dados %>% 
   group_by(exporter) %>% 
   summarise(y_i = sum(trade))
 
-# Dados de dispêndio
+# Dados de dispÃªndio
 e_i <- dados %>% 
   group_by(importer) %>% 
   summarise(e_i = sum(trade))
 
-# Dados de participação na produção
+# Dados de participaÃ§Ã£o na produÃ§Ã£o
 out_share <- matrix(y_i$y_i/sum(y_i$y_i), nrow = nrow(y_i))
 
-# Dados de participação no dispêndio
+# Dados de participaÃ§Ã£o no dispÃªndio
 exp_share <- matrix(e_i$e_i/sum(e_i$e_i), nrow = nrow(e_i))
 
-# Dados de dotação
+# Dados de dotaÃ§Ã£o
 Q <- matrix(y_i$y_i, nrow = nrow(y_i))
 
-# Parâmetro phi
+# ParÃ¢metro phi
 phi <- left_join(y_i, e_i, by = c("exporter" = "importer"))
 phi <- phi %>% 
   mutate(phi = e_i/y_i)
 phi <- phi$phi
 
-# Elasticidade de substituição
+# Elasticidade de substituiÃ§Ã£o
 sigma <- 7
 
-# Soluções -------------------------------------------------------------------
+# SoluÃ§Ãµes -------------------------------------------------------------------
 
-# Termos multilaterais de resistência: baseline
+# Termos multilaterais de resistÃªncia: baseline
 tc <- tc_bsln
 p <- rep(1, nrow(tc)*2)
-sol <- dfsane(p, MRTS, control = list(tol = 1e-12, maxit = 10000, M = 500, noimp = 1000))
+sol <- dfsane(p, MRTS, control = list(tol = 1e-12, maxit = 10000, M = 300, noimp = 1000))
 mrt_bsln <- sol$par
 
 # Recuperar os alphas
 p <- c(mrt_bsln, rep(10, nrow(tc)))
-sol <- dfsane(p, get_alphas, control = list(tol = 1e-15, maxit = 10000, M = 100, noimp = 1000))
+sol <- dfsane(p, get_alphas, control = list(tol = 1e-12, maxit = 10000, M = 300, noimp = 1000))
 alphas <- sol$par[(nrow(tc)*2 + 1):(nrow(tc)*3)]
 
-# Termos multilaterais de resistência: contra factual
+# Termos multilaterais de resistÃªncia: contra factual
 tc <- tc_crfl
 p <- mrt_bsln
 sol <- dfsane(p, MRTS, control = list(tol = 1e-12, maxit = 10000, M = 300, noimp = 1000))
 mrt_crfl <- sol$par
 
-# Checar se os alphas são a solução para custos base
+# Checar se os alphas sÃ£o a soluÃ§Ã£o para custos base
 p <- c(mrt_bsln, rep(1, nrow(tc)) + 0.1)
 tc <- tc_bsln
-sol <- dfsane(p, get_prices, control = list(tol = 1e-15, maxit = 10000, M = 600, noimp = 1000))
+sol <- dfsane(p, get_prices, control = list(tol = 1e-12, maxit = 10000, M = 300, noimp = 1000))
 
-# Solução com os custos de comércio contra factual
+# SoluÃ§Ã£o com os custos de comÃ©rcio contra factual
 tc <- tc_crfl
 p <- c(mrt_crfl, rep(1, nrow(tc)))
-sol <- dfsane(p, get_prices, control = list(tol = 1e-14, maxit = 10000, M = 600, noimp = 1000))
+sol <- dfsane(p, get_prices, control = list(tol = 1e-12, maxit = 10000, M = 100, noimp = 1000))
 sol
 
 ## Comparar resultados
