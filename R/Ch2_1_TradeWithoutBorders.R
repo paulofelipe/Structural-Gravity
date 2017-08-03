@@ -59,20 +59,11 @@ fit <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "INTL"),
 summary(fit)
 
 # Predicted trade in baseline model
-#data_borders$tradehat_BLN <- data_borders$trade - fit$residuals
+data_borders$tradehat_BLN <- fit$fitted.values
 
 # Fixed effects
-fe_exp <- getfe(fit) %>% filter(fe == "exporter") %>% 
-  select(idx, fe_exp = effect)
-fe_imp <- getfe(fit) %>% filter(fe == "importer") %>% 
-  select(idx, fe_imp = effect)
-
-# Exporter Fixed Effect
 data_borders <- data_borders %>% 
-  left_join(fe_exp, by = c("exporter" = "idx")) %>% 
-  left_join(fe_imp, by = c("importer" = "idx")) %>% 
-  mutate(fe_exp = exp(fe_exp),
-         fe_imp = exp(fe_imp))
+  left_join(fit$fixed.effects)
 
 # Trade costs - Baseline
 data_borders <- data_borders %>% 
@@ -82,8 +73,8 @@ data_borders <- data_borders %>%
 
 # Outward and Inward multilateral resistance terms
 data_borders <- data_borders %>% 
-  mutate(OMR_BLN = Y * E_R/ (fe_exp),
-         IMR_BLN = E / (fe_imp * E_R))
+  mutate(OMR_BLN = Y * E_R/ exp(fe_exporter),
+         IMR_BLN = E / (exp(fe_importer) * E_R))
 
 # Output and Expenditure - Baseline
 data_borders <- data_borders %>% 
@@ -93,7 +84,7 @@ data_borders <- data_borders %>%
 
 # Predicted trade - Baseline
 data_borders <- data_borders %>% 
-  mutate(tradehat_BLN = (Y * E * tij_BLN)/( OMR_BLN * IMR_BLN))
+  mutate(tradehat_BLN2 = (Y * E * tij_BLN)/( OMR_BLN * IMR_BLN))
 
 ##############################################################################
 ########################## STEP 2 ###########################################

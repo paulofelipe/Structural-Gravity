@@ -307,17 +307,25 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   }
   
   x_fixed_effects <- data[, fixed_effects]
+  x_fixed_effects$order <- 1:nrow(x_fixed_effects)
+  len_fe <- length(fixed_effects)
   
-  for(i in 1:length(fixed_effects)){
-    fe_tmp <- getfe(reg) %>%
-      filter(fe == fixed_effects[i]) %>% 
-      dplyr::select(idx, effect)
+  for(i in 1:len_fe){
+   
+    fe_tmp <- getfe(reg)
+    fe_tmp <- fe_tmp[fe_tmp$fe == fixed_effects[i], c("idx", "effect")]
+    
     colnames(fe_tmp) <- c(fixed_effects[i], 
                           paste0("fe_", fixed_effects[i]))
-    x_fixed_effects <- left_join(x_fixed_effects,
-                                 fe_tmp,
-                                 by = c(fixed_effects[i]))  
+    x_fixed_effects <- merge(x_fixed_effects,
+                             fe_tmp,
+                             by = fixed_effects[i],
+                             all.x = TRUE)  
   }
+  x_fixed_effects <- x_fixed_effects[order(x_fixed_effects$order), 
+                                     -(len_fe + 1)]
+  x_fixed_effects[,1:len_fe] <- sapply(x_fixed_effects[, 1:len_fe], as.character)
+  reg$fixed.effects <- x_fixed_effects
   
   x_fixed_effects <- x_fixed_effects[,!names(x_fixed_effects) %in% fixed_effects]
   x_fixed_effects <- apply(x_fixed_effects, 1, sum)
@@ -327,16 +335,18 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   x_beta <- exp(x_var%*%reg$coefficients + x_fixed_effects)
   reg$fitted.values <- x_beta
   
-  class(reg) <- "felm2"
+  reg$R2 <- cor(data[[y]], x_beta)^2
+  
+  class(reg) <- "gravity.ppml"
   return(reg)
 }
 
-summary.felm2 <- function(object){
-  class(object) <- "summary.felm2"
+summary.gravity.ppml <- function(object){
+  class(object) <- "summary.gravity.ppml"
   object
 }
 
-print.summary.felm2 <- function(object){
+print.summary.gravity.ppml <- function(object){
   cat("Coefficients: \n")
   results <- data.frame(Estimate = object$coefficients,
                         `Std. Error` = object$se,
