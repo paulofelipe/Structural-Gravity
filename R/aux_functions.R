@@ -330,9 +330,14 @@ gravity_ppml3 <- function(y, x, fixed_effects, data,
   x_fixed_effects <- x_fixed_effects[,!names(x_fixed_effects) %in% fixed_effects]
   x_fixed_effects <- apply(x_fixed_effects, 1, sum)
   
-  x_var <- as.matrix(data[,x])
-  beta <- as.matrix(reg$coefficients)
-  x_beta <- exp(x_var%*%reg$coefficients + x_fixed_effects)
+  if(!is.null(x)){
+    x_var <- as.matrix(data[,x])
+    beta <- as.matrix(reg$coefficients)
+    x_beta <- exp(x_var%*%reg$coefficients + offset + x_fixed_effects)
+  } else {
+    x_beta <- exp(offset + x_fixed_effects)
+  }
+  
   reg$fitted.values <- x_beta
   
   reg$R2 <- cor(data[[y]], x_beta)^2

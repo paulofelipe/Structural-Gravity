@@ -80,11 +80,9 @@ data_borders <- data_borders %>%
 data_borders <- data_borders %>% 
   mutate(Y_BLN = Y,
          E_BLN = E,
-         Y_WLD_BLN = Y_WLD)
-
-# Predicted trade - Baseline
-data_borders <- data_borders %>% 
-  mutate(tradehat_BLN2 = (Y * E * tij_BLN)/( OMR_BLN * IMR_BLN))
+         Y_WLD_BLN = Y_WLD) %>% 
+  rename(fe_exp_bln = fe_exporter,
+         fe_imp_bln = fe_importer)
 
 ##############################################################################
 ########################## STEP 2 ###########################################
@@ -108,38 +106,20 @@ fit_cdl <- gravity_ppml3(y = "trade", x = NULL,
                          data = data_borders,
                          robust = TRUE)
 
-head(getfe(fit_cdl) %>% filter(fe == "exporter"))
-head(getfe(fit) %>% filter(fe == "exporter"))
-
-#tradehat_CDL <- data_borders$trade - fit_cdl$residuals
-
-fe_exp_cdl <- getfe(fit_cdl) %>% filter(fe == "exporter") %>% 
-  select(idx, fe_exp_cdl = effect)
-fe_imp_cdl <- getfe(fit_cdl) %>% filter(fe == "importer") %>% 
-  select(idx, fe_imp_cdl = effect)
-
-# Exporter and Importer Fixed Effect - Conditional
+# Fixed effects
 data_borders <- data_borders %>% 
-  left_join(fe_exp_cdl, by = c("exporter" = "idx")) %>% 
-  left_join(fe_imp_cdl, by = c("importer" = "idx")) %>% 
-  mutate(fe_exp_cdl = exp(fe_exp_cdl),
-         fe_imp_cdl = exp(fe_imp_cdl))
+  left_join(fit_cdl$fixed.effects)
 
 # Outward and Inward multilateral resistance terms
 data_borders <- data_borders %>% 
-  mutate(OMR_CDL = Y * E_R/ (fe_exp_cdl),
-         IMR_CDL = E / (fe_imp_cdl * E_R))
+  mutate(OMR_CDL = Y * E_R/ (exp(fe_exporter)),
+         IMR_CDL = E / (exp(fe_importer) * E_R))
 
 # Predicted trade - Conditional
 data_borders <- data_borders %>% 
-  mutate(tradehat_CDL = (Y * E * tij_CFL)/( OMR_CDL * IMR_CDL))
-
-# Estimated level of international trade conditional on given Y and E
-# data_borders <- data_borders %>% 
-#   mutate(tempXi_CDL = trade - fit_cdl$residuals) %>% 
-#   group_by(exporter) %>% 
-#   mutate(Xi_CDL = sum(tempXi_CDL)) %>% 
-#   ungroup()
+  mutate(tradehat_CDL = (Y * E * tij_CFL)/( OMR_CDL * IMR_CDL)) %>% 
+  rename(fe_exp_cdl = fe_exporter,
+         fe_imp_cdl = fe_importer)
 
 # Full endownment general equilibrium effects
 
@@ -160,7 +140,7 @@ data_borders <- data_borders %>%
 
 # Changes in prices for exporters
 data_borders <- data_borders %>% 
-  mutate(change_p_i = ((fe_exp_cdl / E_R) / (fe_exp / E_R))^(1 /(1 - sigma)))
+  mutate(change_p_i = ((exp(fe_exp_cdl) / E_R) / (exp(fe_exp_bln) / E_R))^(1 /(1 - sigma)))
 
 # Changes in prices for importers
 data_borders <- data_borders %>% 
@@ -196,20 +176,12 @@ while(max(abs(data_borders$dif)) > 1e-6){
                            data = data_borders,
                            robust = TRUE)
   
-  fe_exp_cfl <- getfe(fit_cfl) %>% filter(fe == "exporter") %>% 
-    select(idx, fe_exp_cfl_tmp = effect)
-  fe_imp_cfl <- getfe(fit_cfl) %>% filter(fe == "importer") %>% 
-    select(idx, fe_imp_cfl_tmp = effect)
-  
-  # Exporter and Importer Fixed Effect - Conditional
+  # Fixed effects
   data_borders <- data_borders %>% 
-    left_join(fe_exp_cfl, by = c("exporter" = "idx")) %>% 
-    left_join(fe_imp_cfl, by = c("importer" = "idx")) %>% 
-    mutate(fe_exp_cfl_tmp = exp(fe_exp_cfl_tmp),
-           fe_imp_cfl_tmp = exp(fe_imp_cfl_tmp))
+    left_join(fit_cdl$fixed.effects)
   
   data_borders <- data_borders %>% 
-    mutate(tradehat_CFL = tij_CFL * fe_exp_cfl_tmp * fe_imp_cfl_tmp) %>% 
+    mutate(tradehat_CFL = tij_CFL * exp(fe_exporter) * exp(fe_importer)) %>% 
     group_by(exporter) %>% 
     mutate(Y_CFL_tmp = sum(tradehat_CFL)) %>% 
     ungroup() %>% 
@@ -222,8 +194,8 @@ while(max(abs(data_borders$dif)) > 1e-6){
   
   # Outward and Inward multilateral resistance terms
   data_borders <- data_borders %>% 
-    mutate(OMR_CFL_tmp = Y_CFL_tmp * E_R_CFL_tmp/ (fe_exp_cfl_tmp),
-           IMR_CFL_tmp = E_CFL_tmp / (fe_imp_cfl_tmp * E_R_CFL_tmp))
+    mutate(OMR_CFL_tmp = Y_CFL_tmp * E_R_CFL_tmp/ (exp(fe_exporter)),
+           IMR_CFL_tmp = E_CFL_tmp / (exp(fe_importer) * E_R_CFL_tmp))
   
   # Predicted trade - Conditional
   data_borders <- data_borders %>% 
@@ -231,7 +203,7 @@ while(max(abs(data_borders$dif)) > 1e-6){
   
   # Changes in prices for exporters
   data_borders <- data_borders %>% 
-    mutate(change_p_i = ((fe_exp_cfl_tmp / E_R_CFL_tmp) / (fe_exp_cfl / E_R_CFL))^(1 /(1 - sigma)))
+    mutate(change_p_i = ((exp(fe_exporter) / E_R_CFL_tmp) / (exp(fe_exp_cfl) / E_R_CFL))^(1 /(1 - sigma)))
   
   # Changes in prices for importers
   data_borders <- data_borders %>% 
@@ -258,15 +230,15 @@ while(max(abs(data_borders$dif)) > 1e-6){
   data_borders <- data_borders %>% 
     mutate(Y_CFL = Y_CFL_tmp,
            E_CFL = E_CFL_tmp,
-           fe_exp_cfl = fe_exp_cfl_tmp,
-           fe_imp_cfl = fe_imp_cfl_tmp,
+           fe_exp_cfl = fe_exporter,
+           fe_imp_cfl = fe_importer,
            E_R_CFL = E_R_CFL_tmp,
            OMR_CFL = OMR_CFL_tmp,
            IMR_CFL = IMR_CFL_tmp) %>% 
-    select(-fe_exp_cfl_tmp, -fe_imp_cfl_tmp)
+    select(-fe_exporter, -fe_importer)
   
 }
 
 data_borders <- data_borders %>% 
-  mutate(change_p_i_full = ((fe_exp_cfl / E_R_CFL) / (fe_exp / E_R))^(1 /(1 - sigma)))
+  mutate(change_p_i_full = ((exp(fe_exp_cfl) / E_R_CFL) / (exp(fe_exp_bln) / E_R))^(1 /(1 - sigma)))
 

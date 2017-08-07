@@ -166,7 +166,7 @@ sigma <- 7
 # Termos multilaterais de resistência: baseline
 tc <- tc_bsln
 p <- rep(1, nrow(tc)*2)
-sol <- dfsane(p, MRTS, control = list(tol = 1e-12, maxit = 10000, M = 300, noimp = 1000))
+sol <- dfsane(p, MRTS, control = list(tol = 1e-12, maxit = 10000, M = 0, noimp = 1000))
 mrt_bsln <- sol$par
 
 # Recuperar os alphas
@@ -188,7 +188,7 @@ sol <- dfsane(p, get_prices, control = list(tol = 1e-12, maxit = 10000, M = 300,
 # Solução com os custos de comércio contra factual
 tc <- tc_crfl
 p <- c(mrt_crfl, rep(1, nrow(tc)))
-sol <- dfsane(p, get_prices, control = list(tol = 1e-12, maxit = 10000, M = 100, noimp = 1000))
+sol <- dfsane(p, get_prices, control = list(tol = 1e-12, maxit = 10000, M = 0, noimp = 1000))
 sol
 
 ## Comparar resultados
@@ -198,4 +198,3 @@ data <- data.frame(nls = sol$par[83:123], ppml = indexes$p_full[c(41,1:40)])
 library(ggplot2)
 ggplot(data, aes(x = nls, y = ppml)) + geom_point(size = 3) + 
   geom_abline(col = "red")
-  
