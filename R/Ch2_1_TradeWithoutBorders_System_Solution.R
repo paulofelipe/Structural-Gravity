@@ -17,6 +17,24 @@ check_and_install <- function(package_name){
 # load gravity_ppml function
 source('R/aux_functions.R')
 
+# Load packages -----------------------------------------------------------
+packages <- c('haven', 'lfe', 'dplyr', 'nleqslv', 'ggplot2')
+
+load_packages <- sapply(packages, check_and_install)
+
+# Plot theme --------------------------------------------------------------
+
+theme_gravity <- function(base_size = 12){
+  theme(panel.background = element_rect(fill = "white"),
+        panel.grid.minor = element_line(color = "grey85"),
+        panel.grid.major = element_line(color = "grey85"),
+        title = element_text(face = 'bold'),
+        legend.position = "bottom",
+        legend.key = element_rect(fill = "white"),
+        axis.text = element_text(color = "black"),
+        axis.ticks = element_blank())
+}
+
 
 # Funções -----------------------------------------------------------------
 
@@ -31,6 +49,25 @@ betas <- function(beta){
   r
 }
 
+# Termos multilaterais de resistência
+mrts <- function(m){
+  N <- length(m)
+  r <- vector(length = N, mode = "numeric")
+  
+  ## IMR
+  P <- colSums(tij/m[(N/2 + 1):N] * Y/sum(Y))
+  
+  ## OMR
+  PI <-  colSums(t(tij)/m[1:(N/2)] * E/sum(Y))
+  
+  ## Solution
+  r[1] <- m[1] - 1
+  r[2:(N/2)] <- m[2:(N/2)] - P[2:(N/2)]
+  r[(N/2 + 1):N] <- m[(N/2 + 1):N] - PI[1:(N/2)]
+  r
+  
+}
+
 # Preços de equilíbrio
 prices <- function(p){
   N <- length(p)
@@ -43,16 +80,11 @@ prices <- function(p){
   PI <-  colSums(t(tij)/P * E/sum(Y))
   
   ## Prices
-  r[1] <- P[1] - 1
+  r[1] <- P[1] - 1  
   r[2:N] <- (p^(1-sigma) - Y/sum(Y) * ((beta * PI)^(-1)))[2:N]
   
   r
 }
-
-# Load packages -----------------------------------------------------------
-packages <- c('haven', 'lfe', 'dplyr', 'nleqslv')
-
-load_packages <- sapply(packages, check_and_install)
 
 # Carregar os dados -------------------------------------------------------
 dados <- read_dta('Data/Chapter2Application1.dta')
@@ -146,6 +178,11 @@ beta <- nleqslv(rep(0.1, N), betas)$x
 # Converte beta para que P_{AAA} = 1
 beta <- beta/colSums(beta * tij)[1]
 
+# Checar se os betas formam a solução
+nleqslv(rep(1, N),
+        prices)
+max(abs(1 - nleqslv(rep(1, N), prices)$x)) < 1e-6
+
 
 # Índices Baseline ------------------------------------------------------------
 
@@ -157,16 +194,22 @@ PI_BSLN <- colSums(t(tij)/P_BSLN^(1-sigma) * E/sum(Y))^(1/(1-sigma))
 # Renda Real - RGDP
 RGDP_BSLN <- Y/P_BSLN
 
-# Checar se os betas formam a solução
-nleqslv(rep(1, N),
-        prices)
-max(abs(1 - nleqslv(rep(1, N), prices)$x)) < 1e-6
+# Índices - Condicional -------------------------------------------------------
+tij <- matrix(dados$t_crfl, nrow = sqrt(nrow(dados)), byrow = TRUE)
+
+# Valores Iniciais
+termos_mult <- nleqslv(rep(0.9, N * 2),
+                       mrts, control = list(maxit = 2000))$x
+
+# IMR - Condicional
+P_CDL <- termos_mult[1:N]^(1/(1-sigma))
+
+# OMR - Condicional
+PI_CDL <- termos_mult[(N + 1):(2*N)]^(1/(1-sigma))
 
 # Solução: Contra Factual ----------------------------------------------------
-tij <- matrix(dados$t_crfl, nrow = sqrt(nrow(dados)), byrow = TRUE)
 p <- nleqslv(rep(1, N),
              prices)$x
-
 
 # Índices Contrafactual ---------------------------------------------------
 
@@ -185,8 +228,10 @@ resultados <- data.frame(country = sort(unique(dados$exporter)),
                          p_BSLN = 1,
                          p_CRFL = p,
                          P_BSLN = P_BSLN,
+                         P_CDL = P_CDL,
                          P_CRFL = P_CRFL, 
                          PI_BSLN = PI_BSLN,
+                         PI_CDL = PI_CDL,
                          PI_CRFL = PI_CRFL,
                          Y_BSLN = Q,
                          Y_CRFL = p * Q,
@@ -206,19 +251,51 @@ dados <- dados %>%
          Y_WLD_CRFL = sum(Y_CRFL_exporter * (1- (exporter != importer))),
          X_BSLN = (Y_BSLN_exporter * E_BSLN_importer/Y_WLD_BSLN)  * 
            t_bsln/(P_BSLN_importer * PI_BSLN_exporter)^(1-sigma),
+         X_CDL = (Y_BSLN_exporter * E_BSLN_importer/Y_WLD_BSLN)  * 
+           t_crfl/(P_CDL_importer * PI_CDL_exporter)^(1-sigma),
          X_CRFL = (Y_CRFL_exporter * E_CRFL_importer/Y_WLD_CRFL)  * 
            t_crfl/(P_CRFL_importer * PI_CRFL_exporter)^(1-sigma))
 
 results_exp <- dados %>% 
   group_by(exporter) %>% 
-  summarise(Y = mean(Y_BSLN_exporter),
+  summarise(Y_BSLN = mean(Y_BSLN_exporter),
             X_BSLN = sum(X_BSLN * (exporter != importer)),
+            X_CDL = sum(X_CDL * (exporter != importer)),
             X_CRFL = sum(X_CRFL * (exporter != importer))) %>% 
-  mutate(CHNG_X = (X_CRFL/X_BSLN - 1) * 100) %>% 
+  mutate(CHNG_X_CDL = (X_CDL/X_BSLN - 1) * 100,
+         CHNG_X_FULL = (X_CRFL/X_BSLN - 1) * 100) %>% 
   filter(exporter != "HKG")
 
-plot(x = log(results_exp$Y), y = results_exp$CHNG_X)
+# Plots -----------------------------------------------------------------------
 
-plot(y = (RGDP_CRFL/RGDP_BSLN - 1) * 100, x = log(p*Q))
+# Figure 6 - page 100
+ggplot(results_exp,
+       aes(x = log(Y_BSLN))) +
+  geom_point(aes(y = CHNG_X_FULL, color = "a"), size = 3.5, alpha = 0.7) + 
+  geom_point(aes(y = CHNG_X_CDL, color = "b"), size = 3.5, alpha = 0.7) + 
+  labs(title = "Effects of abolishing international borders on exports",
+       y = "Percent change of exports",
+       x = "Log value of output") +
+  scale_color_manual("",values = c("#280052", "#4A9BE6"),
+                     labels = c("Full Endowment General Equilibrium",
+                                "Conditional General Equilibrium")) +
+  theme_gravity()
 
-plot(y = (p - 1) * 100, x = log(p*Q))
+# Figure 7 - page 100
+ggplot(resultados %>% filter(country != "HKG"),
+       aes(x = log(Y_BSLN))) +
+  geom_point(aes(y = (RGDP_CRFL/RGDP_BSLN - 1) * 100, color = "a", shape = "a"), size = 3.5, alpha = 0.7) +
+  geom_point(aes(y = (p_CRFL - 1) * 100, color = "b", shape = "b"), size = 3.5, alpha = 0.7) +
+  geom_point(aes(y = -(P_CRFL/P_BSLN - 1) * 100, color = "c", shape = "c"), size = 3.5, alpha = 0.7) +
+  labs(title = "Effects of abolishing international borders on real GDP",
+       y = "Percent change",
+       x = "Log value of output") +
+  scale_color_manual("",values = c("#280052", "#4A9BE6", "#000878"),
+                     labels = c("Real GDP",
+                                "Factory-gate price",
+                                "-(inward multilateral resistances)")) +
+  scale_shape_manual("", values = 15:17,
+                     labels = c("Real GDP",
+                                "Factory-gate price",
+                                "-(inward multilateral resistances)")) +
+  theme_gravity()
