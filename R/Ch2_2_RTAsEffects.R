@@ -30,16 +30,19 @@ data_nafta <- data_nafta %>%
          ln_DIST = log(DIST),
          INTL = ifelse(exporter != importer, 1, 0)) %>% 
   filter(year %in% seq(1986, 2006, 4)) %>% 
-  group_by(importer) %>% 
+  group_by(importer, year) %>% 
   mutate(E = sum(trade)) %>% 
-  group_by(exporter) %>% 
+  ungroup() %>% 
+  group_by(exporter, year) %>% 
   mutate(Y = sum(trade)) %>% 
   ungroup() %>% 
+  group_by(year) %>% 
   mutate(E_R_BLN = ifelse(importer == "AAA", E, 0),
          E_R = max(E_R_BLN),
          exp_year = paste0(exporter, year),
          imp_year = paste0(importer, year),
-         pair_id2 = ifelse(exporter == importer, "intra", pair_id))
+         pair_id2 = ifelse(exporter == importer, "intra", pair_id)) %>% 
+  ungroup()
 
 # Sum of trade by pair - all years
 data_nafta <- data_nafta %>% 
@@ -48,6 +51,8 @@ data_nafta <- data_nafta %>%
   ungroup()
 
 # Step 1: Solve the baseline gravity model --------------------------------
+
+# Stage 1: Obtain the estimates of pair fixed effects and RTAs
 fit <- gravity_ppml3(y = "trade", x = "RTA",
                      data = data_nafta %>% filter(sum_trade > 0),
                      fixed_effects = c("imp_year", "exp_year", "pair_id2"),
@@ -57,19 +62,8 @@ fit <- gravity_ppml3(y = "trade", x = "RTA",
 summary(fit)
 
 # Get the fixed effects
-fe <- getfe(fit)
-fe_imp <- getfe(fit) %>% filter(fe == "imp_year") %>% 
-  select(imp_year = idx, fe_imp_year = effect)
-fe_exp <- getfe(fit) %>% filter(fe == "exp_year") %>% 
-  select(exp_year = idx, fe_exp_year = effect)
-fe_pair <- getfe(fit) %>% filter(fe == "pair_id2") %>% 
-  select(pair_id2 = idx, fe_pair_id2 = effect)
-
-# Join data 
 data_nafta <- data_nafta %>% 
-  left_join(fe_imp) %>% 
-  left_join(fe_exp) %>% 
-  left_join(fe_pair)
+  left_join(fit$fixed.effects)
 
 # Generate trade costs
 data_nafta <- data_nafta %>% 
@@ -91,6 +85,7 @@ data_stage2 <- data_stage2 %>%
   select(exporter, importer, tij_noRTA)
 
 data_nafta <- data_nafta %>% 
+  filter(year == 1994) %>% 
   left_join(data_stage2) %>% 
   mutate(tij_bar = ifelse(is.na(tij_bar), tij_noRTA, tij_bar),
          tij_bln = ifelse(is.na(tij_bln), tij_bar*exp(fit$coefficients["RTA",1]*RTA),
@@ -98,5 +93,254 @@ data_nafta <- data_nafta %>%
   select(-tij_noRTA) %>% 
   mutate(ln_tij_bln = log(tij_bln))
 
+# Estimate trade on "constrained" trade costs
 
+fit_bln <- gravity_ppml3(y = "trade",
+                         x = NULL,
+                         fixed_effects = c("importer", "exporter"),
+                         offset = data_nafta$ln_tij_bln,
+                         data = data_nafta,
+                         robust = TRUE,
+                         cluster = "pair_id")
+
+data_nafta <- data_nafta %>% 
+  mutate(tradehat_bln = as.vector(fit_bln$fitted.values))
+
+# Construct baseline indexes
+# Fixed effects
+data_nafta <- data_nafta %>% 
+  left_join(fit_bln$fixed.effects)
+
+# Outward and Inward multilateral resistance terms
+data_nafta <- data_nafta %>% 
+  mutate(OMR_BLN = Y * E_R/ exp(fe_exporter),
+         IMR_BLN = E / (exp(fe_importer) * E_R))
+
+# Output and Expenditure - Baseline
+data_nafta <- data_nafta %>% 
+  mutate(Y_BLN = Y,
+         E_BLN = E) %>% 
+  rename(fe_exp_bln = fe_exporter,
+         fe_imp_bln = fe_importer)
+
+# Step 2: Define a couterfactual scenario -------------------------------------
+
+# RTA = 0 if pair in NAFTA
+
+NAFTA <- c("CAN", "MEX", "USA")
+data_nafta <- data_nafta %>% 
+  mutate(RTA_NO_NAFTA = ifelse(exporter %in% NAFTA & importer %in% NAFTA,
+                               0,
+                               RTA),
+         tij_cfl = tij_bar * exp(fit$coefficients["RTA",1]*RTA_NO_NAFTA),
+         ln_tij_cfl = log(tij_cfl))
   
+# Step 3.a: Solve the counterfactual model ------------------------------------
+
+fit_cfl <- gravity_ppml3(y = "trade",
+                         x = NULL,
+                         fixed_effects = c("importer", "exporter"),
+                         offset = data_nafta$ln_tij_cfl,
+                         data = data_nafta,
+                         robust = TRUE,
+                         cluster = "pair_id")
+
+# Predicted trade value conditional
+data_nafta <- data_nafta %>% 
+  mutate(tradehat_cdl = as.vector(fit_cfl$fitted.values))
+
+# Fixed effects
+data_nafta <- data_nafta %>% 
+  left_join(fit_cfl$fixed.effects)
+
+# Outward and Inward multilateral resistance terms
+data_nafta <- data_nafta %>% 
+  mutate(OMR_CDL = Y * E_R/ (exp(fe_exporter)),
+         IMR_CDL = E / (exp(fe_importer) * E_R))
+
+# Predicted trade - Conditional
+data_nafta <- data_nafta %>% 
+  group_by(exporter) %>% 
+  mutate(Xi_CDL = sum(tradehat_cdl * (exporter != importer))) %>%
+  ungroup() %>% 
+  rename(fe_exp_cdl = fe_exporter,
+         fe_imp_cdl = fe_importer)
+
+# Step 3.b: Full endownment general equilibrium effects -----------------------
+
+# The constant of elasticity of substitution
+sigma = 7
+
+# Change in bilateral trade costs
+data_nafta <- data_nafta %>% 
+  mutate(change_tij = tij_cfl / tij_bln)
+
+# Deficit/Surplus parameter
+data_nafta <- data_nafta %>% 
+  mutate(phi = ifelse(importer == exporter, E/Y, 0)) %>% 
+  group_by(exporter) %>% 
+  mutate(phi = max(phi))
+
+# First-order change in prices 
+
+# Changes in prices for exporters
+data_nafta <- data_nafta %>% 
+  mutate(change_p_i = ((exp(fe_exp_cdl) / E_R) / (exp(fe_exp_bln) / E_R))^(1 /(1 - sigma)))
+
+# Changes in prices for importers
+data_nafta <- data_nafta %>% 
+  group_by(importer) %>% 
+  mutate(change_p_j = ifelse(importer == exporter, change_p_i, 0),
+         change_p_j = max(change_p_j)) %>% 
+  ungroup()
+
+# Compute change in output and expenditure
+data_nafta <- data_nafta %>% 
+  mutate(Y_CFL = Y,
+         E_CFL = E,
+         Y_WLD_CFL = sum(Y_CFL * (1 - INTL)),
+         OMR_CFL_0 = OMR_CDL,
+         IMR_CFL_0 = IMR_CDL,
+         E_R_CFL_0 = E_R,
+         fe_exp_cfl_0 = fe_exp_cdl,
+         fe_imp_cfl_0 = fe_imp_cdl)
+
+# Update trade flows - Counterfactual
+data_nafta <- data_nafta %>% 
+  mutate(trade_cfl = tradehat_cdl * change_p_i * change_p_j)
+
+# Start loop
+data_nafta <- data_nafta %>% 
+  mutate(change_IMR_FULL_0 = 1,
+         change_OMR_FULL_0 = 1,
+         change_p_i_0 = change_p_i,
+         change_p_j_0 = change_p_j,
+         tradehat_0 = tradehat_cdl)
+max_dif <- 1
+sd_dif <- 1
+change_price_i_old <- 0
+while(sd_dif > 0.01 | max_dif > 0.01){
+  
+  data_nafta <- data_nafta %>% 
+    mutate(trade_1 = tradehat_0 * change_p_i_0 * change_p_j_0 /(change_OMR_FULL_0 * change_IMR_FULL_0))
+  
+  fit_cfl <- gravity_ppml3(y = "trade_1", x = NULL,
+                           offset = data_nafta$ln_tij_cfl,
+                           fixed_effects = c("importer", "exporter"),
+                           data = data_nafta,
+                           robust = TRUE)
+  
+  # Fixed effects
+  data_nafta <- data_nafta %>% 
+    left_join(fit_cfl$fixed.effects)
+  
+  data_nafta <- data_nafta %>% 
+    mutate(tradehat_1 = as.vector(fit_cfl$fitted.values)) %>% 
+    group_by(exporter) %>% 
+    mutate(Y_CFL_1 = sum(tradehat_1)) %>% 
+    ungroup() %>% 
+    mutate(E_CFL_1 = ifelse(importer == exporter, phi * Y_CFL_1, 0)) %>% 
+    group_by(importer) %>% 
+    mutate(E_CFL_1 = max(E_CFL_1)) %>% 
+    ungroup() %>% 
+    mutate(E_R_CFL_1 = ifelse(importer == "AAA", E_CFL_1, 0),
+           E_R_CFL_1 = max(E_R_CFL_1))
+  
+  # Changes in prices for exporters
+  data_nafta <- data_nafta %>% 
+    mutate(change_p_i_1 = ((exp(fe_exporter) / E_R_CFL_1) / (exp(fe_exp_cfl_0) / E_R_CFL_0))^(1 /(1 - sigma)))
+  
+  # Changes in prices for importers
+  data_nafta <- data_nafta %>% 
+    group_by(importer) %>% 
+    mutate(change_p_j_1 = ifelse(importer == exporter, change_p_i_1, 0),
+           change_p_j_1 = max(change_p_j_1)) %>% 
+    ungroup()
+  
+  # Outward and Inward multilateral resistance terms
+  data_nafta <- data_nafta %>% 
+    mutate(OMR_CFL_1 = Y_CFL_1 * E_R_CFL_1/ (exp(fe_exporter)),
+           IMR_CFL_1 = E_CFL_1 / (exp(fe_importer) * E_R_CFL_1))
+  
+  
+  
+  # Update dif
+  #print(summary(data_nafta$change_p_i_0 - change_price_i_old))
+  max_dif <- max(data_nafta$change_p_i_0 - change_price_i_old)
+  sd_dif <- sd(data_nafta$change_p_i_0 - change_price_i_old)
+  cat("maximum difference: ", max_dif)
+  change_price_i_old <- data_nafta$change_p_i_0
+  
+  # Changes in OMR and IMR
+  data_nafta <- data_nafta %>% 
+    mutate(change_IMR_FULL_1 = IMR_CFL_1/IMR_CFL_0,
+           change_OMR_FULL_1 = OMR_CFL_1/OMR_CFL_0,
+           IMR_CFL_0 = IMR_CFL_1,
+           OMR_CFL_0 = OMR_CFL_1,
+           change_IMR_FULL_0 = change_IMR_FULL_1,
+           change_OMR_FULL_0 = change_OMR_FULL_1,
+           change_p_i_0 = change_p_i_1,
+           change_p_j_0 = change_p_j_1,
+           tradehat_0 = tradehat_1,
+           E_R_CFL_0 = E_R_CFL_1,
+           fe_exp_cfl_0 = fe_exporter,
+           fe_imp_cfl_0 = fe_importer) %>% 
+    select(-fe_exporter, -fe_importer)
+  
+}
+
+
+# Compute the final indexes
+# Note that changes are computed in this way:
+# change_X_CFL = (X_BLN/X_CFL - 1) * 100
+
+data_nafta <- data_nafta %>%
+  mutate(change_p_i_full = ((exp(fe_exp_cfl_0)/exp(fe_exp_bln))/(E_R_CFL_0/E_R))^(1/(1-sigma)),
+         Y_FULL = change_p_i_full * Y_BLN) %>% 
+  group_by(importer) %>% 
+  mutate(change_p_j_full  = change_p_i_full * (importer == exporter),
+         E_FULL = phi * Y_FULL * (importer  == exporter),
+         change_p_j_full = max(change_p_j_full),
+         E_FULL = max(E_FULL)) %>% 
+  ungroup() %>% 
+  mutate(OMR_FULL = Y_FULL * E_R_CFL_0 / exp(fe_exp_cfl_0),
+         IMR_FULL = E_CFL_1 / (exp(fe_imp_cfl_0) * E_R_CFL_0)) %>%
+  group_by(exporter) %>% 
+  mutate(Xi_BLN = sum(tradehat_bln * (importer != exporter)),
+         Xi_CDL = sum(tradehat_cdl * (importer != exporter)),
+         X_FULL = (Y_FULL * E_FULL * tij_cfl)/(IMR_FULL * OMR_FULL),
+         Xi_FULL = sum(X_FULL * (importer != exporter))) %>% 
+  ungroup()
+
+indexes_exp <- data_nafta %>% 
+  select(exporter, OMR_FULL, OMR_CDL, OMR_BLN, change_p_i_full,
+         Xi_BLN, Xi_CDL, Xi_FULL, Y_BLN, Y_FULL) %>% 
+  distinct() %>% 
+  mutate(exporter = ifelse(exporter == "AAA", "DEU", exporter)) %>% 
+  arrange(exporter) %>% 
+  mutate(change_p_i_full = (1 - change_p_i_full) * 100,
+         change_OMR_CDL = ((OMR_BLN/OMR_CDL)^(1/(1-sigma)) - 1) * 100,
+         change_OMR_FULL = ((OMR_BLN/OMR_FULL)^(1/(1-sigma)) - 1) * 100,
+         change_Xi_CDL = (Xi_BLN/Xi_CDL - 1) * 100,
+         change_Xi_FULL = (Xi_BLN/Xi_FULL - 1) * 100) %>% 
+ select(exporter, starts_with("change"), Y_BLN, Y_FULL)
+  
+indexes_imp <- data_nafta %>% 
+  select(importer, IMR_BLN, IMR_CDL, IMR_FULL) %>% 
+  ungroup()  %>% 
+  distinct() %>% 
+  mutate(importer = ifelse(importer == "AAA", "DEU", importer)) %>% 
+  arrange(importer) %>% 
+  mutate(change_IMR_CDL = ((IMR_BLN/IMR_CDL)^(1/(1-sigma)) - 1) * 100,
+         change_IMR_FULL = ((IMR_BLN/IMR_FULL)^(1/(1-sigma)) - 1) * 100)
+  
+  
+indexes_final <- left_join(indexes_exp, indexes_imp,
+                           by = c("exporter" = "importer")) %>% 
+  mutate(rGDP_BLN = Y_BLN/(IMR_BLN^(1/(1-sigma))),
+         rGDP_FULL = Y_FULL/(IMR_FULL^(1/(1-sigma))),
+         change_rGDP_FULL = (rGDP_BLN/rGDP_FULL - 1) * 100) %>% 
+  select(exporter, change_Xi_CDL, change_Xi_FULL, change_rGDP_FULL,
+         change_IMR_FULL, change_OMR_FULL, change_p_i_full)
+
+View(indexes_final)

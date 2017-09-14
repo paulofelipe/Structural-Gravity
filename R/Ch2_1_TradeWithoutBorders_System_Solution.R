@@ -36,9 +36,9 @@ theme_gravity <- function(base_size = 12){
 }
 
 
-# Funções -----------------------------------------------------------------
+# Functions -----------------------------------------------------------------
 
-# Parâmetros CES
+# CES Parameters
 betas <- function(beta){
   N <- length(beta)
   r <- rep(1, N)
@@ -49,7 +49,7 @@ betas <- function(beta){
   r
 }
 
-# Termos multilaterais de resistência
+# Multilateral Resistance Terms
 mrts <- function(m){
   N <- length(m)
   r <- vector(length = N, mode = "numeric")
@@ -68,10 +68,13 @@ mrts <- function(m){
   
 }
 
-# Preços de equilíbrio
+# Equilibrium Prices
 prices <- function(p){
   N <- length(p)
   r <- vector(length = N)
+  
+  Y <- p * Q
+  E <- phi * p * Q
   
   ## IMR
   P <- colSums(beta * p^(1-sigma) * tij)
@@ -86,10 +89,10 @@ prices <- function(p){
   r
 }
 
-# Carregar os dados -------------------------------------------------------
+# Load Data -------------------------------------------------------
 dados <- read_dta('Data/Chapter2Application1.dta')
 
-# Filtra os dados e criar novas variáveis
+# Filter and generate new variables
 dados <- dados %>% 
   filter(year == 2006) %>% 
   mutate(ln_DIST = log(DIST),
@@ -101,19 +104,19 @@ dados <- dados %>%
   mutate(E = sum(trade)) %>% 
   ungroup()
 
-# Define o país de referência como AAA
+# Define Germany as reference country
 dados <- dados %>%
   mutate(exporter = ifelse(exporter == "DEU", "AAA", exporter),
          importer = ifelse(importer == "DEU", "AAA", importer))
 
-# Estima o modelo gravitacional
+# Estimate the gravitational equation
 fit <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "INTL_BRDR"),
                      fixed_effects = c("importer", "exporter"),
                      data = dados)
 
 summary(fit)
 
-# Computa os custos de comércio - baseline e contra factual
+# Compute trade costs - baseline and counterfactual
 dados <- dados %>% 
   mutate(t_bsln = exp(fit$coefficients["ln_DIST",] * ln_DIST +
                         fit$coefficients["CNTG",] * CNTG +
@@ -125,12 +128,7 @@ dados <- dados %>%
   arrange(exporter, importer)
 
 
-# head(dados)
-# dados <- dados %>%
-#   filter(exporter %in% c("CAN","BRA", "MEX", "USA") &
-#            importer %in% c("CAN","BRA", "MEX", "USA"))
-
-# Computar Y, E, Q, phi -------------------------------------------------------
+# Compute Y, E, Q, phi -------------------------------------------------------
 
 Y <- dados %>% 
   group_by(exporter) %>% 
@@ -146,83 +144,69 @@ Q <- Y
 
 phi <- E/Q
 
-# Custos de Comércio - Baseline -----------------------------------------------
+# Trade costs matrix - Baseline -----------------------------------------------
 tc_bsln <- matrix(dados$t_bsln, nrow = sqrt(nrow(dados)), byrow = TRUE)
 tij <- tc_bsln
-# Calibrar betas --------------------------------------------------------------
+
+# Compute MRTs - Baseline -----------------------------------------------------
 sigma <- 7
 N <- nrow(tij)
-# start_values <- c(0.0498231619392814, 0.0068197580875335, 0.0232387261695378, 
-#                   0.00723142130490437, 0.0147143603449896, 0.00186137961886111, 
-#                   0.000668271991502307, 0.0385672833591634, 0.0267505831909108, 
-#                   0.0112209700412317, 0.0110160521713741, 0.151007769702764, 0.000548925527240701, 
-#                   0.00465563612595528, 0.00147522715892983, 0.000932499713168157, 
-#                   0.00530681746099243, 0.00147405501456217, 0.00265609872058792, 
-#                   0.022845803328183, 0.00856718075450557, 0.031946412579548, 0.0226219499805236, 
-#                   0.00432721871481442, 0.000470674707004898, 0.00541033778456974, 
-#                   0.020589388332436, 0.0353297370328381, 0.00860810524648814, 0.00678740616236631, 
-#                   0.000882518536038507, 0.0050770246890381, 0.036210511848402, 
-#                   0.00175044214353065, 0.0933102306777749, 0.0011952601227573, 
-#                   0.0385871687058756, 0.00102630608686662, 0.00357101350049923, 
-#                   0.000153092937648639, 0.00277796720090255, 0.019475113480638, 
-#                   0.0003446129913758, 0.00340127867994067, 0.000407589741189976, 
-#                   0.000302833330765114, 0.0242532450491626, 5.59683502443296e-05, 
-#                   0.00831951525265885, 0.0115770621520492, 0.00621020573145802, 
-#                   0.000543938808466601, 0.000502897650423773, 0.00958000670242452, 
-#                   0.0106265333117643, 0.00537531845173408, 0.000841903579322441, 
-#                   0.00443273923842532, 0.000427263563189535, 0.00763043577964612, 
-#                   0.013255883914777, 0.0151939955182756, 0.0014115438930697, 0.00186964100335118, 
-#                   0.0149485506391318, 0.000371853000871041, 0.00126744178851435, 
-#                   0.109516216674201, 0.0158416630068266)
-beta <- nleqslv(rep(0.1, N), betas)$x
-# Converte beta para que P_{AAA} = 1
-beta <- beta/colSums(beta * tij)[1]
 
-# Checar se os betas formam a solução
-nleqslv(rep(1, N),
-        prices)
-max(abs(1 - nleqslv(rep(1, N), prices)$x)) < 1e-6
+start_mrts <- c(1, rep(0.5, N-1),
+                rep(0.01, N))
 
+mrts_bln <- nleqslv(start_mrts,
+                    mrts, control = list(maxit = 2000))$x
 
-# Índices Baseline ------------------------------------------------------------
+# Indexes - Baseline ----------------------------------------------------------
 
 # IMR - Baseline
-P_BSLN <- colSums(beta * tij)^(1/(1-sigma))
+P_BSLN <- mrts_bln[1:N]^(1/(1-sigma))
 # OMR - Baseline
-PI_BSLN <- colSums(t(tij)/P_BSLN^(1-sigma) * E/sum(Y))^(1/(1-sigma))
+PI_BSLN <- mrts_bln[(N + 1):(2 * N)]^(1/(1-sigma))
 
-# Renda Real - RGDP
+# RGDP
 RGDP_BSLN <- Y/P_BSLN
 
-# Índices - Condicional -------------------------------------------------------
+# Betas (beta^(1 -sigma)) -----------------------------------------------------
+beta <- (Y/sum(Y)) * 1/(PI_BSLN^(1-sigma))
+
+# Check if beta is the solution
+nleqslv(rep(1.1, N),
+        prices)
+max(abs(1 - nleqslv(rep(1.1, N), prices)$x)) < 1e-8
+
+
+# Trade costs matrix - Counterfactual -----------------------------------------
 tij <- matrix(dados$t_crfl, nrow = sqrt(nrow(dados)), byrow = TRUE)
 
 # Valores Iniciais
-termos_mult <- nleqslv(rep(0.9, N * 2),
+mrts_cdl <- nleqslv(rep(0.9, N * 2),
                        mrts, control = list(maxit = 2000))$x
 
 # IMR - Condicional
-P_CDL <- termos_mult[1:N]^(1/(1-sigma))
+P_CDL <- mrts_cdl[1:N]^(1/(1-sigma))
 
 # OMR - Condicional
-PI_CDL <- termos_mult[(N + 1):(2*N)]^(1/(1-sigma))
+PI_CDL <- mrts_cdl[(N + 1):(2*N)]^(1/(1-sigma))
 
-# Solução: Contra Factual ----------------------------------------------------
+# Solution: Counterfactual ----------------------------------------------------
 p <- nleqslv(rep(1, N),
              prices)$x
 
-# Índices Contrafactual ---------------------------------------------------
+# Indexes - Counterfactual ---------------------------------------------------
 
-# IMR - Contrafactual
+# IMR - Counterfactual
 P_CRFL <- colSums(beta * p^(1-sigma) * tij)^(1/(1-sigma))
 
-# OMR - Contractual
+# OMR - Counterfactual
 PI_CRFL <- colSums(t(tij)/P_CRFL^(1-sigma) * E/sum(Y))^(1/(1-sigma))
 
-# Renda Real - RGDP - Contrafactual
+# RGDP - Counterfactual
 RGDP_CRFL<- p*Q/P_CRFL
 
-# Combinar os resultados com os dados originais
+# Merge results 
+# Indexes by country
 
 resultados <- data.frame(country = sort(unique(dados$exporter)),
                          p_BSLN = 1,
@@ -241,11 +225,14 @@ resultados <- data.frame(country = sort(unique(dados$exporter)),
                          RGDP_CRFL = RGDP_CRFL,
                          stringsAsFactors = FALSE)
 
+# Combine indexes for exporter and importer
+
 dados <- dados %>% 
   left_join(resultados, by = c("exporter" = "country")) %>% 
   left_join(resultados, by = c("importer" = "country"),
             suffix = c("_exporter", "_importer"))
 
+# Compute trade - baseline, conditional e counterfactual
 dados <- dados %>% 
   mutate(Y_WLD_BSLN = sum(Y_BSLN_exporter * (1- (exporter != importer))),
          Y_WLD_CRFL = sum(Y_CRFL_exporter * (1- (exporter != importer))),
@@ -256,6 +243,7 @@ dados <- dados %>%
          X_CRFL = (Y_CRFL_exporter * E_CRFL_importer/Y_WLD_CRFL)  * 
            t_crfl/(P_CRFL_importer * PI_CRFL_exporter)^(1-sigma))
 
+# Summarise export results
 results_exp <- dados %>% 
   group_by(exporter) %>% 
   summarise(Y_BSLN = mean(Y_BSLN_exporter),
