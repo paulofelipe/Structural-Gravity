@@ -65,7 +65,7 @@ data_borders <- data_borders %>%
 ###########################################################################
 
 # Estimate Gravity Equation -----------------------------------------------
-fit <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "INTL"),
+fit <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "INTL"),
                      fixed_effects = c("importer", "exporter"),
                      data = data_borders,
                      robust = TRUE)
@@ -117,7 +117,7 @@ data_borders <- data_borders %>%
 ################# Solve the counterfactual gravity model #####$##############
 ###########################################################################
 
-fit_cdl <- gravity_ppml3(y = "trade", x = NULL,
+fit_cdl <- gravity_ppml(y = "trade", x = NULL,
                          offset = log(data_borders$tij_CFL),
                          fixed_effects = c("importer", "exporter"),
                          data = data_borders,
@@ -194,12 +194,12 @@ data_borders <- data_borders %>%
 max_dif <- 1
 sd_dif <- 1
 change_price_i_old <- 0
-while(sd_dif > 1e-10 | max_dif > 1e-10){
+while(sd_dif > 1e-8 | max_dif > 1e-8){
   
   data_borders <- data_borders %>% 
     mutate(trade_1 = tradehat_0 * change_p_i_0 * change_p_j_0 /(change_OMR_FULL_0 * change_IMR_FULL_0))
   
-  fit_cfl <- gravity_ppml3(y = "trade_1", x = NULL,
+  fit_cfl <- gravity_ppml(y = "trade_1", x = NULL,
                            offset = log(data_borders$tij_CFL),
                            fixed_effects = c("importer", "exporter"),
                            data = data_borders,

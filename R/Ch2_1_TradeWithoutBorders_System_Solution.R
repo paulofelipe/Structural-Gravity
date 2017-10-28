@@ -110,7 +110,7 @@ dados <- dados %>%
          importer = ifelse(importer == "DEU", "AAA", importer))
 
 # Estimate the gravitational equation
-fit <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "INTL_BRDR"),
+fit <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "INTL_BRDR"),
                      fixed_effects = c("importer", "exporter"),
                      data = dados)
 

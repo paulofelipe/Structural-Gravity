@@ -61,7 +61,7 @@ fit1 <- felm(ln_trade ~ ln_DIST + CNTG + LANG + CLNY + RTA| exp_year + imp_year 
 # Column 2 (PPML) ----------------------------------------------------------
 # Traditional Estimates
 
-fit2 <- gravity_ppml3(y = "trade",
+fit2 <- gravity_ppml(y = "trade",
                       x = c("ln_DIST", "CNTG", "LANG", "CLNY", "RTA"),
                       data = data,
                       fixed_effects = c("exp_year", "imp_year"),
@@ -74,7 +74,7 @@ summary(fit2)
 # Column 3 (PPML) ----------------------------------------------------------
 # Traditional Estimates with Intra-national Trade
 
-fit3 <- gravity_ppml3(y = "trade",
+fit3 <- gravity_ppml(y = "trade",
                       x = c("ln_DIST", "CNTG", "LANG", "CLNY", "RTA"),
                       data = data,
                       fixed_effects = c("exp_year", "imp_year", "INTL_BRDR"),
@@ -86,7 +86,7 @@ summary(fit3)
 # Column 4 (PPML) ----------------------------------------------------------
 # Addressing Endogeneity of RTAs
 
-fit4 <- gravity_ppml3(y = "trade",
+fit4 <- gravity_ppml(y = "trade",
                      x = c("RTA"),
                      data = data[data$sum_trade > 0, ],
                      fixed_effects = c("exp_year", "imp_year", "pair_id2"),
@@ -98,7 +98,7 @@ summary(fit4)
 # Column 5 (PPML) ----------------------------------------------------------
 # Testing potential reverse causality between Trade and RTA
 
-fit5 <- gravity_ppml3(y = "trade",
+fit5 <- gravity_ppml(y = "trade",
                       x = c("RTA", "RTA_LEAD4"),
                       data = data,
                       fixed_effects = c("exp_year", "imp_year", "pair_id2"),
@@ -110,7 +110,7 @@ summary(fit5)
 # Column 6 (PPML) ----------------------------------------------------------
 # Allowing for potential non-linear and phasing-in effects of RTAs
 
-fit6 <- gravity_ppml3(y = "trade",
+fit6 <- gravity_ppml(y = "trade",
                       x = c("RTA", "RTA_LAG4", "RTA_LAG8", "RTA_LAG12"),
                       data = data[data$sum_trade > 0, ],
                       fixed_effects = c("exp_year", "imp_year", "pair_id2"),
@@ -122,7 +122,7 @@ summary(fit6)
 # Column 7 (PPML) ----------------------------------------------------------
 # Addressing Globalization Effects
 
-fit7 <- gravity_ppml3(y = "trade",
+fit7 <- gravity_ppml(y = "trade",
                       x = c("RTA", "RTA_LAG4", "RTA_LAG8", "RTA_LAG12",
                             "INTL_BRDR2.year1986", "INTL_BRDR2.year1990",
                             "INTL_BRDR2.year1994", "INTL_BRDR2.year1998",

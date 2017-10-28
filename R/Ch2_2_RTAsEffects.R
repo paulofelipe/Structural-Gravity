@@ -53,7 +53,7 @@ data_nafta <- data_nafta %>%
 # Step 1: Solve the baseline gravity model --------------------------------
 
 # Stage 1: Obtain the estimates of pair fixed effects and RTAs
-fit <- gravity_ppml3(y = "trade", x = "RTA",
+fit <- gravity_ppml(y = "trade", x = "RTA",
                      data = data_nafta %>% filter(sum_trade > 0),
                      fixed_effects = c("imp_year", "exp_year", "pair_id2"),
                      robust = TRUE,
@@ -95,7 +95,7 @@ data_nafta <- data_nafta %>%
 
 # Estimate trade on "constrained" trade costs
 
-fit_bln <- gravity_ppml3(y = "trade",
+fit_bln <- gravity_ppml(y = "trade",
                          x = NULL,
                          fixed_effects = c("importer", "exporter"),
                          offset = data_nafta$ln_tij_bln,
@@ -137,7 +137,7 @@ data_nafta <- data_nafta %>%
   
 # Step 3.a: Solve the counterfactual model ------------------------------------
 
-fit_cfl <- gravity_ppml3(y = "trade",
+fit_cfl <- gravity_ppml(y = "trade",
                          x = NULL,
                          fixed_effects = c("importer", "exporter"),
                          offset = data_nafta$ln_tij_cfl,
@@ -224,7 +224,7 @@ while(sd_dif > 0.01 | max_dif > 0.01){
   data_nafta <- data_nafta %>% 
     mutate(trade_1 = tradehat_0 * change_p_i_0 * change_p_j_0 /(change_OMR_FULL_0 * change_IMR_FULL_0))
   
-  fit_cfl <- gravity_ppml3(y = "trade_1", x = NULL,
+  fit_cfl <- gravity_ppml(y = "trade_1", x = NULL,
                            offset = data_nafta$ln_tij_cfl,
                            fixed_effects = c("importer", "exporter"),
                            data = data_nafta,

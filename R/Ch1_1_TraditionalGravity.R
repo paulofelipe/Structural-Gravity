@@ -156,7 +156,7 @@ round(c.reset, 3)
 # Second: gravity_ppml
 # It uses the speedglm package
 # The speedglm package gives a faster implementation of glm.
-fit5 <- gravity_ppml3(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
+fit5 <- gravity_ppml(y = "trade", x = c("ln_DIST", "CNTG", "LANG", "CLNY"),
                      data = data, 
                      fixed_effects = c("exp_year", "imp_year"),
                      subset = data$exporter != data$importer,

@@ -136,7 +136,7 @@ data_nafta <- data_nafta %>%
 # Step 1: Solve the baseline gravity model --------------------------------
 
 # Stage 1: Obtain the estimates of pair fixed effects and RTAs
-fit <- gravity_ppml3(y = "trade", x = "RTA",
+fit <- gravity_ppml(y = "trade", x = "RTA",
                      data = data_nafta %>% filter(sum_trade > 0),
                      fixed_effects = c("imp_year", "exp_year", "pair_id2"),
                      robust = TRUE,
@@ -178,7 +178,7 @@ data_nafta <- data_nafta %>%
 
 # Estimate trade on "constrained" trade costs
 
-fit_bln <- gravity_ppml3(y = "trade",
+fit_bln <- gravity_ppml(y = "trade",
                          x = NULL,
                          fixed_effects = c("importer", "exporter"),
                          offset = data_nafta$ln_tij_bln,
