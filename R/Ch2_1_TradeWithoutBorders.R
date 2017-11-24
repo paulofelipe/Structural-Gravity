@@ -259,7 +259,7 @@ while(sd_dif > 1e-8 | max_dif > 1e-8){
            E_R_CFL_0 = E_R_CFL_1,
            fe_exp_cfl_0 = fe_exporter,
            fe_imp_cfl_0 = fe_importer) %>% 
-    select(-fe_exporter, -fe_importer)
+    dplyr::select(-fe_exporter, -fe_importer)
 
 }
 
@@ -338,8 +338,3 @@ ggplot(importer_indexes %>% filter(importer != "HKG"),
   theme_gravity()
 
 
-teste <- data.frame(letra = letters[1:8], y = rnorm(8))
-ggplot(teste, aes(x = letra, y = y, fill = letra)) +
-  geom_col() +
-  scale_fill_deaex() +
-  theme_gravity()
