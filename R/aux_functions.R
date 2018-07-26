@@ -1,7 +1,9 @@
 gravity_ppml <- function(y, x, fixed_effects, data,
-                          offset = NULL,
-                          subset = NULL,
-                          robust = TRUE, cluster = NULL){
+                         offset = NULL,
+                         subset = NULL,
+                         robust = TRUE,
+                         cluster = NULL,
+                         tol = 1e-10){
   
   
   if(!is.null(subset)) data <- data[subset,]
@@ -36,7 +38,7 @@ gravity_ppml <- function(y, x, fixed_effects, data,
   
   dif <- 1
   rss1 <- 1
-  while(abs(dif) > 1e-8){
+  while(abs(dif) > tol){
     reg <- felm(f,
                 data = data,
                 weights = mu)

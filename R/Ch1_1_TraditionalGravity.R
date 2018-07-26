@@ -4,7 +4,7 @@
 # Code to replicate the results from Table 1 (page 42)
 # Date: 2017/03/25
 
-
+rm(list = ls())
 # Function to load (and install packages if necessary) --------------------
 
 check_and_install <- function(package_name){
@@ -15,8 +15,9 @@ check_and_install <- function(package_name){
 }
 
 # Load packages -----------------------------------------------------------
-packages <- c('haven', 'dplyr', 'multiwayvcov', 'lmtest',
-              'speedglm', 'Matrix', 'lfe')
+packages <- c('haven', 'multiwayvcov', 'lmtest',
+              'speedglm', 'Matrix', 'lfe',
+              'dplyr')
 
 load_packages <- sapply(packages, check_and_install)
 
