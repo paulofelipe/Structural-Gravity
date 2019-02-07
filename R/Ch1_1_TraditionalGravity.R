@@ -4,7 +4,7 @@
 # Code to replicate the results from Table 1 (page 42)
 # Date: 2017/03/25
 
-rm(list = ls())
+
 # Function to load (and install packages if necessary) --------------------
 
 check_and_install <- function(package_name){

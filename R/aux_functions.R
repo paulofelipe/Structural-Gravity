@@ -183,3 +183,47 @@ print.summary.gravity.ppml <- function(object){
   printCoefmat(results, digits = 4)
 }
 
+predict.gravity.ppml <- function (object, newdata = NULL, offset = NULL){
+  
+  if(is.null(offset)) offset <- rep(0, nrow(newdata))
+  
+  fixed_effects <- names(object$fe)
+  x_fixed_effects <- newdata[, fixed_effects]
+  x_fixed_effects$order <- 1:nrow(x_fixed_effects)
+  len_fe <- length(fixed_effects)
+  
+  for(i in 1:len_fe){
+    
+    fe_tmp <- getfe(object)
+    fe_tmp <- fe_tmp[fe_tmp$fe == fixed_effects[i], c("idx", "effect")]
+    
+    colnames(fe_tmp) <- c(fixed_effects[i], 
+                          paste0("fe_", fixed_effects[i]))
+    
+    x_fixed_effects <- merge(x_fixed_effects,
+                             fe_tmp,
+                             by = fixed_effects[i],
+                             all.x = TRUE)  
+  }
+  
+  x_fixed_effects <- x_fixed_effects[order(x_fixed_effects$order), 
+                                     -(len_fe + 1)]
+  
+  x_fixed_effects[,1:len_fe] <- sapply(x_fixed_effects[, 1:len_fe], as.character)
+  object$fixed.effects <- x_fixed_effects
+  
+  x_fixed_effects <- x_fixed_effects[,!names(x_fixed_effects) %in% fixed_effects]
+  x_fixed_effects <- apply(x_fixed_effects, 1, sum)
+  
+  x <- rownames(object$beta)
+  
+  if(!is.null(x)){
+    x_var <- as.matrix(newdata[,x])
+    beta <- as.matrix(object$coefficients)
+    x_beta <- exp(x_var%*%object$coefficients + offset + x_fixed_effects)
+  } else {
+    x_beta <- exp(offset + x_fixed_effects)
+  }
+  
+   x_beta
+}
