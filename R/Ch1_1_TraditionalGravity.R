@@ -2,19 +2,9 @@
 # Chapter 1: Partial Equilibrium Trade Policy Analysis with Structural Gravity
 # Application 1: Traditional Gravity Estimates
 # Code to replicate the results from Table 1 (page 42)
-# Date: 2021/01/28
+# Last update: 2021/01/28
 
 # Load packages -----------------------------------------------------------
-# packages <- c(
-#        "haven", "multiwayvcov", "lmtest",
-#        "speedglm", "Matrix", "lfe",
-#        "dplyr"
-# )
-
-# load_packages <- sapply(packages, check_and_install)
-
-# # load speedglm_cluster function
-# source("R/aux_functions.R")
 
 library(haven)
 library(dplyr)
@@ -121,16 +111,13 @@ fit3 <- feols(
 summary(fit3, cluster = ~pair_id)
 
 # Colum 4 (PPML with Fixed Effects) ----------------------------------------
-# First solution: glm()
-# It is slower, but we can use the cluster.vcov function
 
-fit4 <- feglm(
+fit4 <- fepois(
   trade ~ ln_DIST + CNTG + LANG + CLNY | exp_year + imp_year,
-  family = "poisson",
   data = data %>% filter(exporter != importer)
 )
 
-summary(fit4, cluster = ~ pair_id)
+summary(fit4, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
 
 # Reset test
 pred2 <- predict(fit4, type = "link")^2
@@ -139,12 +126,11 @@ data <- data %>%
   filter(exporter != importer) %>% 
   mutate(pred_2 = pred2)
 
-fit.reset <- feglm(
+fit.reset <- fepois(
   trade ~ pred_2 + ln_DIST + CNTG + LANG + CLNY | exp_year + imp_year,
-  family = "poisson",
   data =  data %>% 
     filter(exporter != importer) %>% 
     ungroup()
 )
 
-summary(fit.reset, cluster = ~ pair_id)
+summary(fit.reset, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
