@@ -47,10 +47,11 @@ data <- bind_cols(data, INTL_BRDR_YEAR)
 fit1 <- feols(
   ln_trade ~ ln_DIST + CNTG + LANG + CLNY + RTA | exp_year + imp_year,
   data = data %>% 
-    filter(trade > 0, importer != exporter)
+    filter(trade > 0, importer != exporter),
+  cluster = ~ pair_id
 )
 
-summary(fit1, cluster = ~ pair_id)
+summary(fit1)
 
 # Column 2 (PPML) ----------------------------------------------------------
 # Traditional Estimates
@@ -58,20 +59,24 @@ summary(fit1, cluster = ~ pair_id)
 fit2 <- fepois(
   trade ~ ln_DIST + CNTG + LANG + CLNY + RTA | exp_year + imp_year,
   data = data %>% 
-    filter(importer != exporter)
+    filter(importer != exporter),
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit2, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit2)
 
 # Column 3 (PPML) ----------------------------------------------------------
 # Traditional Estimates with Intra-national Trade
 
 fit3 <- fepois(
   trade ~ ln_DIST + CNTG + LANG + CLNY + RTA | exp_year + imp_year + INTL_BRDR,
-  data = data
+  data = data,
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit3, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit3)
 
 # Column 4 (PPML) ----------------------------------------------------------
 # Addressing Endogeneity of RTAs
@@ -79,10 +84,12 @@ summary(fit3, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
 fit4 <- fepois(
   trade ~ RTA | exp_year + imp_year + pair_id2,
   data = data %>%
-    filter(sum_trade > 0)
+    filter(sum_trade > 0),
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit4, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit4)
 
 # Column 5 (PPML) ----------------------------------------------------------
 # Testing potential reverse causality between Trade and RTA
@@ -90,10 +97,12 @@ summary(fit4, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
 fit5 <- fepois(
   trade ~ RTA + RTA_LEAD4 | exp_year + imp_year + pair_id2,
   data = data %>%
-    filter(sum_trade > 0)
+    filter(sum_trade > 0),
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit5, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit5)
 
 # Column 6 (PPML) ----------------------------------------------------------
 # Allowing for potential non-linear and phasing-in effects of RTAs
@@ -101,20 +110,23 @@ summary(fit5, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
 fit6 <- fepois(
   trade ~ RTA + RTA_LAG4 + RTA_LAG8 + RTA_LAG12 | exp_year + imp_year + pair_id2,
   data = data %>%
-    filter(sum_trade > 0)
+    filter(sum_trade > 0),
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit6, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit6)
 
 # Column 7 (PPML) ----------------------------------------------------------
 # Addressing Globalization Effects
-
 fit7 <- fepois(
   trade ~ RTA + RTA_LAG4 + RTA_LAG8 + RTA_LAG12 + 
   INTL_BRDR2.year1986 + INTL_BRDR2.year1990 + INTL_BRDR2.year1994 + 
   INTL_BRDR2.year1998 + INTL_BRDR2.year2002 | exp_year + imp_year + pair_id2,
   data = data %>%
-    filter(sum_trade > 0)
+    filter(sum_trade > 0),
+  cluster =  ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit7, se = "cluster", cluster = ~pair_id, dof(fixef.K = "none"))
+summary(fit7)

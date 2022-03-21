@@ -66,6 +66,8 @@ fit <- fepois(
   ssc = ssc(adj = FALSE)
 )
 
+summary(fit)
+
 # Compute trade costs - baseline and counterfactual
 dados <- dados %>%
   mutate(

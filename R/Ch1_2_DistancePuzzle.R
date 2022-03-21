@@ -46,10 +46,11 @@ fit <- feols(
     CNTG + LANG + CLNY |
     exp_year + imp_year,
   data = data %>%
-    filter(trade > 0, importer != exporter)
+    filter(trade > 0, importer != exporter),
+  cluster = ~pair_id
 )
 
-summary(fit, cluster = ~pair_id)
+summary(fit)
 
 # PPML with exporter/time and importer/time fixed effects --------------------
 
@@ -59,10 +60,12 @@ fit2 <- fepois(
     CNTG + LANG + CLNY |
     exp_year + imp_year,
   data = data %>%
-    filter(importer != exporter)
+    filter(importer != exporter),
+  cluster =  ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit2, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit2)
 
 # PPML with intra trade ------------------------------------------------------
 
@@ -84,10 +87,12 @@ fit3 <- fepois(
     logDIST1998 + logDIST2002 + logDIST2006 +
     CNTG + LANG + CLNY + logDIST_INTRA |
     exp_year + imp_year,
-  data = data
+  data = data,
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit3, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit3)
 
 # PPML with intra trade and Home Bias   --------------------------------------
 
@@ -96,10 +101,12 @@ fit4 <- fepois(
     logDIST1998 + logDIST2002 + logDIST2006 +
     CNTG + LANG + CLNY + logDIST_INTRA + SMCTRY |
     exp_year + imp_year,
-  data = data
+  data = data,
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit4, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit4)
 
 # PPML with intra-national fixed effects
 
@@ -111,7 +118,9 @@ fit5 <- fepois(
     logDIST1998 + logDIST2002 + logDIST2006 +
     CNTG + LANG + CLNY |
     exp_year + imp_year + intra_pair,
-  data = data
+  data = data,
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit5, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit5)

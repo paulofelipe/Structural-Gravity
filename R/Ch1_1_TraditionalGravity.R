@@ -105,32 +105,48 @@ data <- data %>%
 
 fit3 <- feols(
   ln_trade ~ ln_DIST + CNTG + LANG + CLNY | exp_year + imp_year,
-  data = data %>% filter(exporter != importer, trade > 0)
+  data = data %>% filter(exporter != importer, trade > 0),
+  cluster = ~pair_id
 )
 
-summary(fit3, cluster = ~pair_id)
+summary(fit3)
+
+# Reset test
+pred_2 <- predict(fit3, type = "link")^2
+
+fit.reset <- feols(
+  ln_trade ~ pred_2 + ln_DIST + CNTG + LANG + CLNY | exp_year + imp_year,
+  data =  data %>% 
+    filter(exporter != importer, trade > 0) %>% 
+    mutate(pred_2 = pred_2) %>%
+    ungroup(),
+  cluster = ~ pair_id
+)
+
+summary(fit.reset)
 
 # Colum 4 (PPML with Fixed Effects) ----------------------------------------
 
 fit4 <- fepois(
   trade ~ ln_DIST + CNTG + LANG + CLNY | exp_year + imp_year,
-  data = data %>% filter(exporter != importer)
+  data = data %>% filter(exporter != importer),
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit4, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit4)
 
 # Reset test
-pred2 <- predict(fit4, type = "link")^2
-#data[data$exporter != data$importer, "pred_2"] <- pred2
-data <- data %>% 
-  filter(exporter != importer) %>% 
-  mutate(pred_2 = pred2)
+pred_2 <- predict(fit4, type = "link")^2
 
 fit.reset <- fepois(
   trade ~ pred_2 + ln_DIST + CNTG + LANG + CLNY | exp_year + imp_year,
   data =  data %>% 
     filter(exporter != importer) %>% 
-    ungroup()
+    mutate(pred2 = pred2) %>%
+    ungroup(),
+  cluster = ~ pair_id,
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit.reset, se = "cluster", cluster = ~ pair_id, dof(fixef.K = "none"))
+summary(fit.reset)
