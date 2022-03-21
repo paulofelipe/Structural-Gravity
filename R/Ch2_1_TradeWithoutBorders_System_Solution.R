@@ -61,7 +61,9 @@ dados <- dados %>%
 fit <- fepois(
   trade ~ ln_dist + cntg + intl_brdr | importer + exporter,
   data = dados %>%
-    arrange(exporter, importer)
+    arrange(exporter, importer),
+  se = "hetero",
+  ssc = ssc(adj = FALSE)
 )
 
 # Compute trade costs - baseline and counterfactual

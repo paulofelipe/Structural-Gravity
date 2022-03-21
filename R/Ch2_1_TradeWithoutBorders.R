@@ -66,10 +66,12 @@ data_borders <- data_borders %>%
 # Estimate Gravity Equation -----------------------------------------------
 fit <- fepois(
   trade ~ ln_dist + cntg + intl | exporter + importer,
-  data = data_borders
+  data = data_borders,
+  se = "hetero",
+  ssc = ssc(adj = FALSE)
 )
 
-summary(fit, se = "hetero")
+summary(fit)
 
 # Predicted trade in baseline model
 data_borders <- data_borders %>%

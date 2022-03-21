@@ -60,8 +60,13 @@ data_nafta <- data_nafta %>%
 # STATA. For this reason, we will use a custom function.
 # fit <- fepois(
 #   trade ~ rta | exp_year + imp_year + pair_id2,
-#   data = data_nafta %>% filter(sum_trade > 0)
+#   data = data_nafta %>% filter(sum_trade > 0),
+#   cluster = ~ pair_id,
+#   # adj = FALSE to compute the same standard-errors of the gravity_ppml function
+#   ssc = ssc(adj = FALSE)
 # )
+
+# fit
 
 # Stage 1: Obtain the estimates of pair fixed effects and RTAs
 fit <- gravity_ppml(
